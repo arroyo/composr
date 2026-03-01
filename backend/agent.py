@@ -60,6 +60,9 @@ def clear_song() -> str:
 tools = [create_track, add_notes, change_tempo, clear_song]
 tool_node = ToolNode(tools)
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # --- Agent Initialization ---
 llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 llm_with_tools = llm.bind_tools(tools)
