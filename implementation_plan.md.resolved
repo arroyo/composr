@@ -1,0 +1,35 @@
+# AI Music Agent Architecture
+
+This plan aims to build an AI system capable of composing, editing, and playing back music arrangements. The system will start with a single agent using a FastAPI backend and a Next.js/Tone.js frontend.
+
+## User Review Required
+> [!NOTE]
+> Please review the chosen technology stack:
+> - **Backend:** Python, FastAPI, LangGraph, and a custom JSON schema for music representation.
+> - **Frontend:** Next.js (React), Tone.js (for web audio synthesis), TailwindCSS (for styling).
+> - **Workspace:** `/Users/jarroyo/.gemini/antigravity/scratch/ai-music-agent`
+
+## Proposed Changes
+
+### 1. Backend API & Agent Layer
+- **`backend/` directory**
+  - initialize Python virtual environment and dependencies.
+  - **`main.py`**: FastAPI entry point exposing a chat endpoint.
+  - **`schema.py`**: Pydantic models for the symbolic music notation (e.g., `Song`, `Track`, `Note`).
+  - **`agent.py`**: LangGraph node/edge definitions and the language model setup, equipped with tools to modify the song state.
+
+### 2. Frontend Interface & Audio Engine
+- **`frontend/` directory**
+  - Initialize Next.js app (`create-next-app`).
+  - **`lib/audio.ts`**: Tone.js audio engine interface to parse the song schema and schedule notes for playback.
+  - **`components/Chat.tsx`**: Interface for the user to prompt the agent.
+  - **`components/PianoRoll.tsx`**: Visual representation of the agent's generated notes.
+  - **`app/page.tsx`**: Main dashboard combining the Chat, Piano Roll, and Transport (Play/Stop) controls.
+
+## Verification Plan
+
+### Automated Tests
+- Validate that the agent's tool outputs strictly adhere to the Pydantic JSON schema for musical notes.
+
+### Manual Verification
+- **Audio Output:** User will input a prompt (e.g., "Write a simple C major scale") and visually confirm the notes appear in the Piano Roll and audibly confirm playback via Tone.js synthesizers.

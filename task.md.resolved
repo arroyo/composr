@@ -1,0 +1,18 @@
+# AI Music Agent Tasks
+
+- [x] Phase 1: Planning and Setup
+  - [x] Draft implementation plan
+  - [x] Initialize project directory
+- [x] Phase 2: Backend Core (Python)
+  - [x] Initialize Python environment and dependencies (FastAPI, LangGraph)
+  - [x] Define Music JSON Schema
+  - [x] Set up LangGraph agent framework and prompt
+  - [x] Create agent tools for composing notes
+- [x] Phase 3: Frontend Core (Next.js + Tone.js)
+  - [x] Boot Next.js project
+  - [x] Install Tone.js and build basic Synth playback component
+  - [x] Build basic Piano Roll visualization
+  - [x] Create Chat UI
+- [x] Phase 4: Integration
+  - [x] Connect Frontend to Backend API
+  - [x] End-to-end testing (Agent -> JSON -> Browser Audio)
