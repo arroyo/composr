@@ -5,7 +5,7 @@ import Chat from "@/components/Chat";
 import PianoRoll from "@/components/PianoRoll";
 import { Song } from "@/lib/types";
 import { engine } from "@/lib/audio";
-import { Play, Square } from "lucide-react";
+import { Play, Square, Save, FolderOpen } from "lucide-react";
 
 export default function Home() {
   const [song, setSong] = useState<Song | null>(null);
@@ -38,6 +38,27 @@ export default function Home() {
     }
   };
 
+  const handleSave = async () => {
+    try {
+      await fetch("http://localhost:8000/api/save", { method: "POST" });
+      alert("Song saved successfully!");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to save song");
+    }
+  };
+
+  const handleLoad = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/load", { method: "POST" });
+      const data = await res.json();
+      await handleUpdateSong(data);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to load song");
+    }
+  };
+
   return (
     <div className="flex h-screen w-full bg-zinc-950 text-white overflow-hidden selection:bg-indigo-500/30 font-sans">
       {/* Sidebar: Chat Interface */}
@@ -60,8 +81,8 @@ export default function Home() {
               onClick={handlePlayPause}
               disabled={!song || song.tracks.length === 0}
               className={`w-14 h-14 flex items-center justify-center rounded-2xl transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${isPlaying
-                  ? "bg-rose-500/20 text-rose-500 hover:bg-rose-500/30 border border-rose-500/50"
-                  : "bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-400/20"
+                ? "bg-rose-500/20 text-rose-500 hover:bg-rose-500/30 border border-rose-500/50"
+                : "bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-400/20"
                 }`}
             >
               {isPlaying ? <Square className="w-5 h-5 fill-current" /> : <Play className="w-6 h-6 fill-current ml-1" />}
@@ -70,6 +91,17 @@ export default function Home() {
               <span className="text-xs uppercase tracking-widest text-zinc-400 font-semibold mb-0.5">Global Pitch</span>
               <span className="text-sm font-medium text-zinc-300">440Hz / Standard</span>
             </div>
+          </div>
+
+          <div className="flex items-center gap-4 ml-8 border-l border-zinc-800/80 pl-8 mr-auto">
+            <button onClick={handleSave} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-indigo-400 transition-colors">
+              <Save className="w-5 h-5" />
+              <span className="text-[10px] uppercase font-bold tracking-wider">Save</span>
+            </button>
+            <button onClick={handleLoad} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-indigo-400 transition-colors">
+              <FolderOpen className="w-5 h-5" />
+              <span className="text-[10px] uppercase font-bold tracking-wider">Load</span>
+            </button>
           </div>
 
           <div className="flex gap-10">
