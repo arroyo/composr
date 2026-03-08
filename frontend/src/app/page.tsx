@@ -15,7 +15,7 @@ export default function Home() {
   const handleUpdateSong = async (newSong: Song) => {
     setSong(newSong);
     if (audioInitialized) {
-      engine.loadSong(newSong);
+      await engine.loadSong(newSong);
     }
   };
 
@@ -24,7 +24,7 @@ export default function Home() {
       await engine.init();
       setAudioInitialized(true);
       if (song) {
-        engine.loadSong(song);
+        await engine.loadSong(song);
       }
     }
 

@@ -71,7 +71,7 @@ system_prompt = """You are an AI Music Producer. Your job is to compose symbolic
 You will receive requests from the user to construct a song arrangement.
 
 You have access to tools that modify the current song state:
-- create_track: Creates a new instrument track.
+- create_track: Creates a new instrument track. You must provide a valid General MIDI instrument name (e.g., 'acoustic_grand_piano', 'acoustic_guitar_steel', 'electric_bass_finger', 'synth_drum', 'violin', etc). Choose an instrument that fits the requested genre.
 - add_notes: Adds a list of `Note` objects to a track. Notes use Tone.js scheduling notation (e.g. C4 pitch, '0:0:0' starts at bar 0, beat 0, sixteenth 0).
 - change_tempo: Sets the BPM.
 - clear_song: Deletes everything.

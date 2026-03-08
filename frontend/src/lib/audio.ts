@@ -1,63 +1,76 @@
 import * as Tone from 'tone';
+import { Soundfont } from 'smplr';
 import { Song, Track, Note } from './types';
 
 export class AudioEngine {
-    private synths: Record<string, Tone.PolySynth> = {};
+    private synths: Record<string, Soundfont> = {};
     private parts: Tone.Part[] = [];
+    private reverb: Tone.Reverb | null = null;
 
     // Initializes audio context on user interaction
     async init() {
         await Tone.start();
+        
+        if (!this.reverb) {
+            this.reverb = new Tone.Reverb({
+                decay: 1.5,
+                preDelay: 0.01,
+            }).toDestination();
+        }
+
         Tone.Transport.stop();
         Tone.Transport.cancel();
         this.cleanup();
     }
 
-    // Parses song state and schedules all notes
-    public loadSong(song: Song) {
+    // Parses song state, downloads necessary soundfonts, and schedules all notes
+    public async loadSong(song: Song) {
         this.cleanup();
 
         // Set global tempo
         Tone.Transport.bpm.value = song.tempo;
         Tone.Transport.timeSignature = song.time_signature;
 
-        song.tracks.forEach(track => {
-            // Map JSON instrument strings to Tone classes
-            const SynthClass = this.getSynthClass(track.instrument);
-
-            const synth = new Tone.PolySynth(SynthClass as any).toDestination();
-            // Add slight reverb for a premium sound feel
-            const reverb = new Tone.Reverb({
-                decay: 1.5,
-                preDelay: 0.01,
-            }).toDestination();
-            synth.connect(reverb);
+        const loadPromises = song.tracks.map(async (track) => {
+            // Load the soundfont dynamically based on the requested instrument
+            // e.g. "acoustic_guitar_steel", "acoustic_grand_piano"
+            let synth: Soundfont;
+            try {
+                synth = new Soundfont(Tone.getContext().rawContext as AudioContext, {
+                    instrument: track.instrument as any,
+                });
+                await synth.load;
+            } catch (error) {
+                console.warn(`Failed to load instrument "${track.instrument}", falling back to acoustic_grand_piano.`, error);
+                synth = new Soundfont(Tone.getContext().rawContext as AudioContext, {
+                    instrument: "acoustic_grand_piano" as any,
+                });
+                await synth.load;
+            }
 
             this.synths[track.id] = synth;
 
-            // Schedule notes
-            const trackEvents = track.notes.map(n => ({
+            // Schedule notes using Tone.js transport timing but triggering smplr
+            const part = new Tone.Part((time, value) => {
+                // Tone.js provides seconds (time), smplr needs seconds for triggering
+                synth.start({
+                    note: value.note,
+                    time: time,
+                    duration: Tone.Time(value.duration).toSeconds(),
+                    velocity: Math.floor(value.velocity * 127), // smplr uses MIDI velocity [0-127]
+                });
+            }, track.notes.map(n => ({
                 time: n.start_time,
                 note: n.pitch,
                 duration: n.duration,
                 velocity: n.velocity
-            }));
-
-            const part = new Tone.Part((time, value) => {
-                synth.triggerAttackRelease(value.note, value.duration, time, value.velocity);
-            }, trackEvents).start(0);
+            }))).start(0);
 
             this.parts.push(part);
         });
-    }
 
-    private getSynthClass(name: string) {
-        switch (name) {
-            case 'FMSynth': return Tone.FMSynth;
-            case 'AMSynth': return Tone.AMSynth;
-            case 'MonoSynth': return Tone.MonoSynth;
-            default: return Tone.Synth;
-        }
+        // Wait completely until all Soundfonts are downloaded before allowing playback
+        await Promise.all(loadPromises);
     }
 
     public play() {
@@ -72,6 +85,8 @@ export class AudioEngine {
 
     public stop() {
         Tone.Transport.stop();
+        // Stop any lingering sounds in the instruments
+        Object.values(this.synths).forEach(s => s.stop());
     }
 
     public isPlaying() {
@@ -81,7 +96,7 @@ export class AudioEngine {
     public cleanup() {
         this.parts.forEach(p => p.dispose());
         this.parts = [];
-        Object.values(this.synths).forEach(s => s.dispose());
+        // Optional: smplr doesn't have a rigid dispose(), but we clear references
         this.synths = {};
     }
 }

@@ -9,7 +9,7 @@ class Note(BaseModel):
 
 class Track(BaseModel):
     id: str = Field(description="A unique identifier for the track (e.g., 'lead_synth', 'bass', 'pads')")
-    instrument: str = Field(description="The type of synthesizer to use (e.g., 'PolySynth', 'MonoSynth', 'FMSynth', 'AMSynth')")
+    instrument: str = Field(description="The exact General MIDI instrument name to use (e.g., 'acoustic_grand_piano', 'acoustic_guitar_steel', 'electric_bass_finger')")
     notes: List[Note] = Field(default_factory=list, description="A chronological array of notes generated for this track")
 
 class Song(BaseModel):
