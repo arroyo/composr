@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Chat from "@/components/Chat";
 import PianoRoll from "@/components/PianoRoll";
 import Mixer from "@/components/Mixer";
@@ -75,7 +75,7 @@ export default function Home() {
     }
   };
 
-  const handlePlayPause = async () => {
+  const handlePlayPause = useCallback(async () => {
     if (!audioInitialized) {
       await engine.init();
       setAudioInitialized(true);
@@ -92,7 +92,28 @@ export default function Home() {
       engine.play();
       setIsPlaying(true);
     }
-  };
+  }, [audioInitialized, isPlaying, song]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+      
+      if (e.code === "Space") {
+        e.preventDefault();
+        handlePlayPause();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handlePlayPause]);
 
   const handleSave = () => {
     if (!song) {
