@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Song, Track } from "@/lib/types";
 import { engine } from "@/lib/audio";
-import { Volume2, VolumeX, Info } from "lucide-react";
 
 interface MixerProps {
   song: Song | null;
@@ -72,16 +71,8 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
 
         return (
           <div key={track.id} className="flex flex-col items-center justify-end w-24 bg-zinc-900/50 rounded-2xl border border-zinc-800/80 p-4 shadow-xl">
-            {/* Tooltip & Info */}
-            <div className="mb-auto relative group flex items-center justify-center w-full">
-               <Info className="w-4 h-4 text-zinc-500 hover:text-indigo-400 transition-colors cursor-pointer" />
-               <div className="absolute top-6 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs w-48 z-50 pointer-events-none shadow-2xl">
-                 <div className="text-zinc-400 mb-1"><span className="text-zinc-500">Engine:</span> {track.instrument.engine}</div>
-                 <div className="text-zinc-400 mb-1"><span className="text-zinc-500">Plugin:</span> {track.instrument.plugin}</div>
-                 <div className="text-zinc-400 mb-1"><span className="text-zinc-500">Bank:</span> {track.instrument.bank}</div>
-                 <div className="text-indigo-300"><span className="text-zinc-500">Preset:</span> {track.instrument.preset}</div>
-               </div>
-            </div>
+            {/* Spacer to push controls to bottom */}
+            <div className="mb-auto" />
 
             {/* Pan Slider */}
             <div className="flex flex-col items-center mb-6 w-full">
@@ -142,8 +133,16 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
             </div>
 
             {/* Track Name */}
-            <div className="bg-zinc-950 w-full text-center py-2 rounded-lg border border-zinc-800 shadow-inner">
-              <span className="text-xs font-semibold text-zinc-300 truncate px-1 block">{track.id}</span>
+            <div className="relative group w-full cursor-pointer">
+              <div className="bg-zinc-950 w-full text-center py-2 rounded-lg border border-zinc-800 shadow-inner group-hover:border-indigo-500/50 transition-colors">
+                <span className="text-xs font-semibold text-zinc-300 group-hover:text-indigo-300 transition-colors truncate px-1 block">{track.id}</span>
+              </div>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs w-48 z-50 pointer-events-none shadow-2xl text-left">
+                <div className="text-zinc-400 mb-1"><span className="text-zinc-500">Engine:</span> {track.instrument.engine}</div>
+                <div className="text-zinc-400 mb-1"><span className="text-zinc-500">Plugin:</span> {track.instrument.plugin}</div>
+                <div className="text-zinc-400 mb-1"><span className="text-zinc-500">Bank:</span> {track.instrument.bank}</div>
+                <div className="text-indigo-300"><span className="text-zinc-500">Preset:</span> {track.instrument.preset}</div>
+              </div>
             </div>
             {/* Decibel Readout */}
             <span className="text-[10px] tabular-nums text-zinc-500 mt-2 font-mono">{volVal.toFixed(1)} dB</span>

@@ -73,9 +73,19 @@ export default function PianoRoll({ song, audioInitialized, onEnsureAudioInit }:
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <h3 className="font-medium text-zinc-200 text-lg">{track.id}</h3>
-                                <span className="text-xs px-2 py-1 rounded-md bg-zinc-800/80 text-zinc-300 font-mono border border-zinc-700/30">
-                                    {track.instrument?.preset || "unknown"}
-                                </span>
+                                <div className="relative group flex items-center cursor-pointer">
+                                    <span className="text-xs px-2 py-1 rounded-md bg-zinc-800/80 text-zinc-300 group-hover:text-indigo-300 font-mono border border-zinc-700/30 group-hover:border-indigo-500/50 transition-colors">
+                                        {track.instrument?.preset || "unknown"}
+                                    </span>
+                                    {track.instrument && (
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs w-48 z-50 pointer-events-none shadow-2xl text-left">
+                                            <div className="text-zinc-400 mb-1"><span className="text-zinc-500">Engine:</span> {track.instrument.engine}</div>
+                                            <div className="text-zinc-400 mb-1"><span className="text-zinc-500">Plugin:</span> {track.instrument.plugin}</div>
+                                            <div className="text-zinc-400 mb-1"><span className="text-zinc-500">Bank:</span> {track.instrument.bank}</div>
+                                            <div className="text-indigo-300"><span className="text-zinc-500">Preset:</span> {track.instrument.preset}</div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             
                             <div className="flex items-center gap-2">
