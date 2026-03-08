@@ -102,7 +102,13 @@ export default function Home() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/15 via-zinc-950 to-zinc-950 pointer-events-none" />
 
         <div className="flex-1 relative z-10 overflow-hidden">
-          <PianoRoll song={song} />
+          <PianoRoll song={song} audioInitialized={audioInitialized} onEnsureAudioInit={async () => {
+            if (!audioInitialized) {
+              await engine.init();
+              setAudioInitialized(true);
+              if (song) await engine.loadSong(song);
+            }
+          }} />
         </div>
 
         {/* Transport Controls */}

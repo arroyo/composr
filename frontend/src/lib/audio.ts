@@ -140,6 +140,24 @@ export class AudioEngine {
         }
     }
 
+    // Plays a single note immediately for previewing
+    // We get the synth for the track, and trigger it using immediate time
+    public playNote(trackId: string, pitch: string, duration: string | number = "8n", velocity: number = 0.8) {
+        const synth = this.synths[trackId];
+        if (!synth) {
+            console.warn(`No synth found for track ${trackId} to play note`);
+            return;
+        }
+
+        // Trigger note immediately
+        synth.start({
+            note: pitch,
+            time: Tone.now(),
+            duration: Tone.Time(duration).toSeconds(),
+            velocity: Math.floor(velocity * 127)
+        });
+    }
+
     public pause() {
         Tone.Transport.pause();
     }

@@ -7,9 +7,11 @@ import { engine } from "@/lib/audio";
 
 interface PianoRollProps {
     song: Song | null;
+    audioInitialized: boolean;
+    onEnsureAudioInit: () => Promise<void>;
 }
 
-export default function PianoRoll({ song }: PianoRollProps) {
+export default function PianoRoll({ song, audioInitialized, onEnsureAudioInit }: PianoRollProps) {
     const [mutedTracks, setMutedTracks] = useState<Set<string>>(new Set());
     const [soloTracks, setSoloTracks] = useState<Set<string>>(new Set());
 
@@ -106,7 +108,15 @@ export default function PianoRoll({ song }: PianoRollProps) {
                                 <span className="text-zinc-600 italic text-sm">No notes generated for this track</span>
                             ) : (
                                 track.notes.map((note, idx) => (
-                                    <div key={idx} className="flex gap-2.5 items-center bg-zinc-800/50 border border-zinc-700/50 px-3 py-1.5 rounded-lg text-zinc-300 transition-all hover:bg-zinc-800 hover:border-zinc-500 cursor-default shadow-sm">
+                                    <div
+                                        key={idx}
+                                        onClick={async () => {
+                                            await onEnsureAudioInit();
+                                            engine.playNote(track.id, note.pitch, note.duration, note.velocity);
+                                        }}
+                                        className="flex gap-2.5 items-center bg-zinc-800/50 border border-zinc-700/50 px-3 py-1.5 rounded-lg text-zinc-300 transition-all hover:bg-indigo-900/40 hover:border-indigo-500/50 active:scale-95 cursor-pointer shadow-sm select-none"
+                                        title={`Play ${note.pitch}`}
+                                    >
                                         <span className="font-medium text-indigo-400">{note.pitch}</span>
                                         <div className="h-4 w-px bg-zinc-700"></div>
                                         <span className="text-zinc-400 font-mono text-xs">{note.start_time}</span>
