@@ -38,25 +38,52 @@ export default function Home() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
+    if (!song) {
+      alert("No song to save!");
+      return;
+    }
     try {
-      await fetch("http://localhost:8000/api/save", { method: "POST" });
-      alert("Song saved successfully!");
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(song, null, 2));
+      const downloadAnchorNode = document.createElement("a");
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", "song.json");
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
     } catch (e) {
       console.error(e);
       alert("Failed to save song");
     }
   };
 
-  const handleLoad = async () => {
-    try {
-      const res = await fetch("http://localhost:8000/api/load", { method: "POST" });
-      const data = await res.json();
-      await handleUpdateSong(data);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to load song");
-    }
+  const handleLoad = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const parsedSong = JSON.parse(text) as Song;
+        await handleUpdateSong(parsedSong);
+
+        // Sync back up with the backend so the AI agent knows the new state
+        await fetch("http://localhost:8000/api/state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: text,
+        });
+
+      } catch (err) {
+        console.error(err);
+        alert("Failed to load song from file");
+      }
+    };
+    input.click();
   };
 
   return (

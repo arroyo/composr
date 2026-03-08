@@ -57,24 +57,11 @@ async def chat(request: ChatRequest):
         song_state=result["song"]
     )
 
-@app.post("/api/save")
-async def save_song():
-    """Saves the current song to a local JSON file."""
-    from agent import current_song
-    with open("saved_song.json", "w") as f:
-        f.write(current_song.model_dump_json(indent=2))
-    return {"status": "success"}
-
-@app.post("/api/load", response_model=Song)
-async def load_song():
-    """Loads the song from the local JSON file."""
+@app.post("/api/state", response_model=Song)
+async def map_state(song: Song):
+    """Updates the internal song state with a user-provided JSON file."""
     import agent
-    from schema import Song
-    import os
-    if os.path.exists("saved_song.json"):
-        with open("saved_song.json", "r") as f:
-            data = f.read()
-            agent.current_song = Song.model_validate_json(data)
+    agent.current_song = song
     return agent.current_song
 
 if __name__ == "__main__":
