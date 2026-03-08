@@ -21,6 +21,7 @@ export interface Track {
 }
 
 export interface Song {
+    name?: string;
     tempo: number;
     time_signature: [number, number];
     tracks: Track[];

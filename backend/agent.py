@@ -112,7 +112,14 @@ def update_track_instrument(track_id: str, engine: str, plugin: str, bank: str, 
     track.instrument.preset = str(preset)
     return f"Updated track '{track_id}' to engine={engine}, plugin={plugin}, bank={bank}, preset={preset}."
 
-tools = [create_track, add_notes, change_tempo, clear_song, update_track_instrument]
+@tool
+def set_song_name(name: str) -> str:
+    """Sets a creative name for the current song."""
+    global current_song
+    current_song.name = name
+    return f"Song name updated to '{name}'."
+
+tools = [create_track, add_notes, change_tempo, clear_song, update_track_instrument, set_song_name]
 tool_node = ToolNode(tools)
 
 from dotenv import load_dotenv
@@ -144,6 +151,12 @@ AVAILABLE ELECTRONIC SYNTHS (tonejs):
 
 AVAILABLE ACOUSTIC/REAL INSTRUMENTS (smplr):
 {smplr_instruments}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SONG NAMING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Whenever you create a new song, ALWAYS assign it a short, creative name by calling the `set_song_name` tool.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NOTE WRITING RULES

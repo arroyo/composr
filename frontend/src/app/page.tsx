@@ -51,10 +51,17 @@ export default function Home() {
       return;
     }
     try {
+      let filename = "song.json";
+      if (song.name) {
+        let safeName = song.name.replace(/ /g, '-').slice(0, 35);
+        safeName = safeName.replace(/[^a-zA-Z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        if (safeName) filename = `${safeName}.json`;
+      }
+
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(song, null, 2));
       const downloadAnchorNode = document.createElement("a");
       downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", "song.json");
+      downloadAnchorNode.setAttribute("download", filename);
       document.body.appendChild(downloadAnchorNode);
       downloadAnchorNode.click();
       downloadAnchorNode.remove();
@@ -125,7 +132,9 @@ export default function Home() {
               </h1>
             </div>
             {song ? (
-              <p className="text-zinc-500 text-sm mt-1">Tempo: {song.tempo} BPM • Time Signature: {song.time_signature.join("/")}</p>
+              <p className="text-zinc-500 text-sm mt-1">
+                <strong className="text-zinc-300">{song.name || "Untitled Song"}</strong> • Tempo: {song.tempo} BPM • Time Signature: {song.time_signature.join("/")}
+              </p>
             ) : (
               <p className="text-zinc-500 text-sm mt-1">Ready to create</p>
             )}

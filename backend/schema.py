@@ -57,6 +57,7 @@ class Track(BaseModel):
     )
 
 class Song(BaseModel):
+    name: str = Field(default="Untitled Song", description="The creative name of the generated song")
     tempo: int = Field(default=120, description="The Beats Per Minute (BPM) of the song")
     time_signature: tuple[int, int] = Field(default=(4, 4), description="The time signature of the song (e.g., 4/4)")
     tracks: List[Track] = Field(default_factory=list, description="All tracks that make up the song arrangement")

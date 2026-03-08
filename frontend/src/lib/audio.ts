@@ -200,8 +200,20 @@ export class AudioEngine {
                 }
 
                 const part = new Tone.Part((time, value) => {
-                    const durationSecs = Tone.Time(value.duration).toSeconds();
-                    triggerToneNote(synth, value.note, durationSecs, time, value.velocity);
+                    const currentSynth = this.synths[track.id];
+                    if (!currentSynth) return;
+
+                    if (isToneSynth(currentSynth)) {
+                        const durationSecs = Tone.Time(value.duration).toSeconds();
+                        triggerToneNote(currentSynth, value.note, durationSecs, time, value.velocity);
+                    } else {
+                        (currentSynth as Soundfont).start({
+                            note: value.note,
+                            time,
+                            duration: Tone.Time(value.duration).toSeconds(),
+                            velocity: Math.floor(value.velocity * 127),
+                        });
+                    }
                 }, mappedEvents).start(0);
 
                 this.parts.push(part);
@@ -234,12 +246,20 @@ export class AudioEngine {
                 this.synths[track.id] = synth;
 
                 const part = new Tone.Part((time, value) => {
-                    (synth as Soundfont).start({
-                        note: value.note,
-                        time,
-                        duration: Tone.Time(value.duration).toSeconds(),
-                        velocity: Math.floor(value.velocity * 127),
-                    });
+                    const currentSynth = this.synths[track.id];
+                    if (!currentSynth) return;
+
+                    if (isToneSynth(currentSynth)) {
+                        const durationSecs = Tone.Time(value.duration).toSeconds();
+                        triggerToneNote(currentSynth, value.note, durationSecs, time, value.velocity);
+                    } else {
+                        (currentSynth as Soundfont).start({
+                            note: value.note,
+                            time,
+                            duration: Tone.Time(value.duration).toSeconds(),
+                            velocity: Math.floor(value.velocity * 127),
+                        });
+                    }
                 }, track.notes.map(n => ({
                     time: n.start_time,
                     note: n.pitch,
