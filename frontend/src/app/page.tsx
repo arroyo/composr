@@ -7,7 +7,7 @@ import Mixer from "@/components/Mixer";
 import TransportTime from "@/components/TransportTime";
 import { Song } from "@/lib/types";
 import { engine } from "@/lib/audio";
-import { Play, Square, Save, FolderOpen } from "lucide-react";
+import { Play, Square, Save, FolderOpen, Trash2 } from "lucide-react";
 
 export default function Home() {
   const [song, setSong] = useState<Song | null>(null);
@@ -17,12 +17,61 @@ export default function Home() {
 
   useEffect(() => {
     engine.onPlaybackStop = () => setIsPlaying(false);
+    
+    // Load saved song from browser storage
+    const savedSong = localStorage.getItem("composr_song");
+    if (savedSong) {
+      try {
+        const parsedSong = JSON.parse(savedSong) as Song;
+        setSong(parsedSong);
+        
+        // Sync the restored state with the backend silently
+        fetch("http://localhost:8000/api/state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: savedSong,
+        }).catch(err => console.error("Failed to sync restored state to backend", err));
+      } catch (e) {
+        console.error("Failed to parse saved song from localStorage", e);
+      }
+    }
   }, []);
 
   const handleUpdateSong = async (newSong: Song) => {
     setSong(newSong);
+    localStorage.setItem("composr_song", JSON.stringify(newSong));
     if (audioInitialized) {
       await engine.loadSong(newSong);
+    }
+  };
+
+  const handleClear = () => {
+    if (window.confirm("Are you sure you want to clear the current song? This cannot be undone.")) {
+      const emptySong: Song = {
+        name: "Untitled Song",
+        tempo: 120,
+        time_signature: [4, 4],
+        tracks: []
+      };
+      
+      setSong(null);
+      localStorage.removeItem("composr_song");
+      
+      if (isPlaying) {
+        engine.stop();
+        setIsPlaying(false);
+      }
+      
+      if (audioInitialized) {
+        engine.loadSong(emptySong).catch(console.error);
+      }
+      
+      // Notify backend about the cleared state
+      fetch("http://localhost:8000/api/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(emptySong),
+      }).catch(err => console.error("Failed to clear state on backend", err));
     }
   };
 
@@ -182,6 +231,10 @@ export default function Home() {
             <button onClick={handleLoad} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-indigo-400 transition-colors">
               <FolderOpen className="w-5 h-5" />
               <span className="text-[10px] uppercase font-bold tracking-wider">Load</span>
+            </button>
+            <button onClick={handleClear} disabled={!song} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-rose-400 disabled:opacity-50 disabled:hover:text-zinc-500 transition-colors">
+              <Trash2 className="w-5 h-5" />
+              <span className="text-[10px] uppercase font-bold tracking-wider">Clear</span>
             </button>
           </div>
 

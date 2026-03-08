@@ -162,7 +162,7 @@ export class AudioEngine {
             // Support legacy save files that might have `engine` at the top level
             const trackEngine = track.instrument.engine || (track as any).engine;
             
-            if (trackEngine === 'tonejs' || trackEngine === 'tone') {
+            if (trackEngine === 'tonejs' || (trackEngine as string) === 'tone') {
                 useElectronic = true;
             } else if (trackEngine === 'smplr') {
                 useElectronic = false;
