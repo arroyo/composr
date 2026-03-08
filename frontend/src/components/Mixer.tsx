@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Song, Track } from "@/lib/types";
+import { Song, Track, InstrumentState } from "@/lib/types";
+import instrumentsData from "@/lib/instruments.json";
 import { engine } from "@/lib/audio";
 
 interface MixerProps {
@@ -32,6 +33,25 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
     onUpdateSong(updatedSong);
     if (audioInitialized) {
       engine.setTrackVolume(updatedSong.tracks[trackIndex].id, newVolume);
+    }
+  };
+
+  const handleInstrumentChange = (trackIndex: number, instrumentId: string) => {
+    const defaultInst = instrumentsData[0];
+    const item = instrumentsData.find((i: { id: string; engine: string; plugin: string; bank: string; label: string }) => i.id === instrumentId) || defaultInst;
+    const newInstrument: InstrumentState = {
+      engine: item.engine as "smplr" | "tonejs",
+      plugin: item.plugin,
+      bank: item.bank,
+      preset: item.id
+    };
+
+    const updatedSong = { ...song };
+    updatedSong.tracks[trackIndex].instrument = newInstrument;
+    onUpdateSong(updatedSong);
+
+    if (audioInitialized) {
+      engine.setTrackInstrument(updatedSong.tracks[trackIndex].id, newInstrument);
     }
   };
 
@@ -130,6 +150,22 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
                 style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
                 className="h-full w-2 appearance-none bg-zinc-950 border border-zinc-800 rounded-full cursor-pointer accent-indigo-500"
               />
+            </div>
+
+            {/* Instrument Selector */}
+            <div className="w-full mb-3 px-1">
+              <select
+                className="w-full bg-zinc-950/50 border border-zinc-700/50 rounded-md text-[10px] text-zinc-300 py-1 px-1 appearance-none focus:outline-none focus:ring-1 focus:ring-indigo-500 hover:bg-zinc-800 transition-colors cursor-pointer text-center"
+                value={track.instrument.preset}
+                onChange={(e) => handleInstrumentChange(i, e.target.value)}
+                title="Change Instrument"
+              >
+                {instrumentsData.map((inst: { id: string; engine: string; plugin: string; bank: string; label: string }) => (
+                  <option key={inst.id} value={inst.id}>
+                    {inst.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Track Name */}

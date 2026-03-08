@@ -6,7 +6,7 @@ export interface Note {
 }
 
 export interface InstrumentState {
-    engine: "smplr" | "tone";
+    engine: "smplr" | "tonejs";
     plugin: string;
     bank: string;
     preset: string;

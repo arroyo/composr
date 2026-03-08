@@ -1,3 +1,5 @@
+import json
+import os
 from typing import Annotated, Literal, TypedDict
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -15,6 +17,19 @@ class AgentState(TypedDict):
 # --- Global In-Memory Song State ---
 current_song = Song()
 
+# Load instruments dictionary
+INSTRUMENTS_FILE = os.path.join(os.path.dirname(__file__), "instruments.json")
+with open(INSTRUMENTS_FILE, 'r') as f:
+    AVAILABLE_INSTRUMENTS = json.load(f)
+
+# Group instruments by engine for the prompt
+TONEJS_INSTRUMENTS = [i for i in AVAILABLE_INSTRUMENTS if i["engine"] == "tonejs"]
+SMPLR_INSTRUMENTS = [i for i in AVAILABLE_INSTRUMENTS if i["engine"] == "smplr"]
+
+def format_instruments_for_prompt(inst_list):
+    return "\n".join([f"    {i['label']} -> engine=\"{i['engine']}\", plugin=\"{i['plugin']}\", bank=\"{i['bank']}\", preset=\"{i['id']}\"" for i in list(inst_list)])
+
+
 # --- Tools ---
 @tool
 def create_track(track_id: str, engine: str, plugin: str, bank: str, preset: str) -> str:
@@ -22,38 +37,13 @@ def create_track(track_id: str, engine: str, plugin: str, bank: str, preset: str
 
     Args:
         track_id: A short unique name for the track (e.g. 'kick', 'snare', 'bass', 'lead').
-
-        engine: MUST be either "tone" or "smplr".
-            - Use "tone" for ALL electronic/synthetic sounds (e.g. Hip Hop, Trap, EDM, Techno).
-              This includes ALL electronic drums, 808s, synth basses, EDM leads, pads, and arps.
-            - Use "smplr" for ALL acoustic/real-instrument sounds (e.g. Rock, Folk, Classical, Jazz).
-              This includes piano, acoustic guitar, violin, cello, bass guitar, acoustic drums, etc.
+        engine: Must be either "tonejs" or "smplr".
         plugin: The synthesizer class handling the sound.
-            If engine="tone", choose: "MembraneSynth", "NoiseSynth", "MetalSynth", "PolySynth", "FMSynth", "AMSynth".
-            If engine="smplr", choose: "Soundfont", "DrumMachine", "SplendidGrandPiano".
-
         bank: The sound bank collection. MUST be 'factory' by default.
-
         preset: The specific sound within the engine.
-            If engine="tone", examples:
-              "kick"       -> 808 / bass drum
-              "snare"      -> snare drum / clap
-              "hihat"      -> hi-hat (closed or open)
-              "cymbal"     -> crash / ride cymbal
-              "bass_synth" -> synth bass line
-              "lead_synth" -> mono lead melody
-              "pad"        -> atmospheric chord pad
-              "fm_bass"    -> punchy FM bass
-              "arp"        -> arpeggio synth
 
-            If engine="smplr", use the exact General MIDI name or smplr drum names:
-              Melodic: "acoustic_grand_piano", "electric_piano_1", "acoustic_guitar_steel",
-                       "acoustic_guitar_nylon", "electric_guitar_clean", "violin", "viola",
-                       "cello", "contrabass", "flute", "clarinet", "oboe", "trumpet",
-                       "trombone", "acoustic_bass", "electric_bass_finger", "electric_bass_pick",
-                       "orchestral_harp", "banjo", "sitar", "church_organ", "accordion"
-              Drums: "taiko_drum" (kick/toms), "woodblock" (snare/sticks/rim), "reverse_cymbal",
-                     "steel_drums", "synth_drum", "melodic_tom"
+    Check the system prompt for the exact combinations of engine, plugin, bank, and preset.
+    You can freely mix "tonejs" and "smplr" engines on different tracks, regardless of the song's genre.
     """
     global current_song
     if current_song.get_track(track_id):
@@ -105,7 +95,7 @@ def update_track_instrument(track_id: str, engine: str, plugin: str, bank: str, 
 
     Args:
         track_id: The ID of the track to update.
-        engine: "tone" for electronic synths, "smplr" for acoustic/MIDI instruments.
+        engine: "tonejs" for electronic synths, "smplr" for acoustic/MIDI instruments.
         plugin: The specific synth class (e.g. "PolySynth" or "Soundfont").
         bank: The sound bank collection (default "factory").
         preset: The new instrument preset within the chosen engine
@@ -132,53 +122,37 @@ load_dotenv()
 llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 llm_with_tools = llm.bind_tools(tools)
 
-system_prompt = """You are an AI Music Producer. You compose symbolic music using tool calls.
+system_prompt_template = """You are an AI Music Producer. You compose symbolic music using tool calls.
 
 CRITICAL BEHAVIORAL RULE:
 Unless the user says "start over", "clear", or "new song", ADD to the existing arrangement. Never call clear_song on follow-up requests.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ENGINE SELECTION — THIS IS MANDATORY
+ENGINE SELECTION & SOUND DESIGN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Your first step must ALWAYS be determining the genre of the requested song:
-1. Is it an Electronic Genre? (Hip Hop, Trap, EDM, House, Techno, Synthwave) -> Use ONLY `tone` engine.
-2. Is it an Acoustic Genre? (Country, Folk, Classical, Jazz, Acoustic Rock) -> Use ONLY `smplr` engine.
+You have full creative freedom to use any combination of audio engines:
+- `tonejs`: Electronic/synthetic synthesis engine (808s, synth basses, EDM leads, synthetic drums).
+- `smplr`: Acoustic/real-world sample engine (Piano, guitar, strings, acoustic drums).
 
-When calling create_track, you MUST set the `engine` field correctly based on the genre above:
+Feel free to mix acoustic drums with electronic synths, or lo-fi piano with 808s! 
 
-NEVER use engine="smplr" for drums in hip hop, trap, or EDM.
-NEVER use engine="smplr" for synth bass, leads, or pads in electronic genres.
-NEVER use engine="tone" for piano, guitar, violin, or acoustic drums in acoustic genres.
+Below is the EXACT dictionary of available instruments you MUST use. Choose the correct `engine`, `plugin`, `bank`, and `preset` values corresponding to the sounds you want.
 
-GENRE RULESET:
+AVAILABLE ELECTRONIC SYNTHS (tonejs):
+{tonejs_instruments}
 
-  Electronic Genres (Hip Hop / Trap / EDM / House / Techno) — ALL drums and synths use engine="tone":
-    kick drum     → engine="tone", plugin="MembraneSynth", bank="factory", preset="kick"
-    snare / clap  → engine="tone", plugin="NoiseSynth", bank="factory", preset="snare"
-    hi-hat        → engine="tone", plugin="MetalSynth", bank="factory", preset="hihat"
-    cymbal        → engine="tone", plugin="MetalSynth", bank="factory", preset="cymbal"
-    808 bass      → engine="tone", plugin="MembraneSynth", bank="factory", preset="808"
-    synth bass    → engine="tone", plugin="PolySynth", bank="factory", preset="bass_synth"
-    lead synth    → engine="tone", plugin="PolySynth", bank="factory", preset="lead_synth"
-    pads          → engine="tone", plugin="AMSynth", bank="factory", preset="pad"
-
-  Acoustic Genres (Country / Folk / Classical / Jazz) — ALL instruments use engine="smplr":
-    guitar        → engine="smplr", plugin="Soundfont", bank="factory", preset="acoustic_guitar_steel"
-    piano (classic) → engine="smplr", plugin="SplendidGrandPiano", bank="factory", preset="acoustic_grand_piano"
-    piano (lofi)  → engine="smplr", plugin="Soundfont", bank="factory", preset="electric_piano_1"
-    strings       → engine="smplr", plugin="Soundfont", bank="factory", preset="violin" / "cello"
-    bass          → engine="smplr", plugin="Soundfont", bank="factory", preset="acoustic_bass"
-    drums         → engine="smplr", plugin="DrumMachine", bank="factory", preset="TR-808" / "Acoustic"
+AVAILABLE ACOUSTIC/REAL INSTRUMENTS (smplr):
+{smplr_instruments}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NOTE WRITING RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 - Pitch: scientific notation (C4, D#3, Bb2)
-- For kick (tone): use low pitches like C1 or B0
-- For snare (tone): pitch is ignored, use C4 as placeholder
-- For hihat (tone): use high pitches like A5 or F#5
+- For kick (tonejs): use low pitches like C1 or B0
+- For snare (tonejs): pitch is ignored, use C4 as placeholder
+- For hihat (tonejs): use high pitches like A5 or F#5
 - For acoustic percussion (smplr): use C4
 - start_time: 'bars:beats:sixteenths' — in 4/4: Beat1=0:0:0, Beat2=0:1:0, Beat3=0:2:0, Beat4=0:3:0
 - duration: '4n'=quarter, '8n'=eighth, '16n'=sixteenth
@@ -193,6 +167,11 @@ def agent_node(state: AgentState):
         song_json = current_song.model_dump_json(indent=2)
     except AttributeError:
         song_json = current_song.json(indent=2)
+        
+    system_prompt = system_prompt_template.format(
+        tonejs_instruments=format_instruments_for_prompt(TONEJS_INSTRUMENTS),
+        smplr_instruments=format_instruments_for_prompt(SMPLR_INSTRUMENTS)
+    )
         
     context_prompt = f"{system_prompt}\n\nCURRENT SONG STATE:\n{song_json}"
 

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Song } from "@/lib/types";
-import { VolumeX, Headphones } from "lucide-react";
 import { engine } from "@/lib/audio";
 
 interface PianoRollProps {
@@ -91,17 +90,17 @@ export default function PianoRoll({ song, audioInitialized, onEnsureAudioInit }:
                             <div className="flex items-center gap-2">
                                 <button 
                                     onClick={() => toggleMute(track.id)}
-                                    className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-colors ${isMuted ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : 'bg-transparent text-zinc-500 border-zinc-700/50 hover:bg-zinc-800 hover:text-zinc-300'}`}
+                                    className={`w-9 h-9 flex items-center justify-center rounded-lg border font-bold text-xs transition-all ${isMuted ? 'bg-rose-500/20 text-rose-500 border-rose-500/50' : 'bg-zinc-800 text-zinc-400 border-transparent hover:bg-zinc-700'}`}
                                     title="Mute Track"
                                 >
-                                    <VolumeX className="w-4 h-4" />
+                                    M
                                 </button>
                                 <button 
                                     onClick={() => toggleSolo(track.id)}
-                                    className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-colors ${isSoloed ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/50' : 'bg-transparent text-zinc-500 border-zinc-700/50 hover:bg-zinc-800 hover:text-zinc-300'}`}
+                                    className={`w-9 h-9 flex items-center justify-center rounded-lg border font-bold text-xs transition-all ${isSoloed ? 'bg-amber-500/20 text-amber-500 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'bg-zinc-800 text-zinc-400 border-transparent hover:bg-zinc-700'}`}
                                     title="Solo Track"
                                 >
-                                    <Headphones className="w-4 h-4" />
+                                    S
                                 </button>
                             </div>
                         </div>

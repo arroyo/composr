@@ -162,13 +162,13 @@ export class AudioEngine {
             // Support legacy save files that might have `engine` at the top level
             const trackEngine = track.instrument.engine || (track as any).engine;
             
-            if (trackEngine === 'tone') {
+            if (trackEngine === 'tonejs' || trackEngine === 'tone') {
                 useElectronic = true;
             } else if (trackEngine === 'smplr') {
                 useElectronic = false;
             } else if (acousticKeywords.some(kw => instrumentLower.includes(kw))) {
                 useElectronic = false;
-            } else if (instrumentLower.startsWith('tone:') || electronicKeywords.some(kw => instrumentLower.includes(kw))) {
+            } else if (instrumentLower.startsWith('tonejs:') || instrumentLower.startsWith('tone:') || electronicKeywords.some(kw => instrumentLower.includes(kw))) {
                 useElectronic = true;
             }
 
@@ -284,6 +284,50 @@ export class AudioEngine {
 
     public setMasterVolume(volumeDb: number) {
         Tone.Destination.volume.value = volumeDb;
+    }
+
+    public async setTrackInstrument(trackId: string, newInstrument: Song["tracks"][0]["instrument"]) {
+        const channel = this.channels[trackId];
+        if (!channel) return;
+
+        // Dispose old synth if it was a tone synth, or clear it out
+        const oldSynth = this.synths[trackId];
+        if (oldSynth) {
+            if (isToneSynth(oldSynth)) {
+                oldSynth.dispose();
+            } else {
+                (oldSynth as Soundfont).stop();
+            }
+        }
+
+        if (newInstrument.engine === "tonejs") {
+            const synth = createToneSynth(newInstrument.plugin, newInstrument.preset, channel);
+            this.synths[trackId] = synth;
+        } else {
+            const rawContext = Tone.getContext().rawContext as AudioContext;
+            const nativeGain = rawContext.createGain();
+            // Disconnect channel's old gain if any and reconnect
+            Tone.connect(nativeGain as any, channel);
+
+            let synth: any;
+            const SmplrPluginClass = (window as any).smplr?.[newInstrument.plugin] || Soundfont;
+            
+            try {
+                synth = new SmplrPluginClass(rawContext, {
+                    instrument: newInstrument.preset as any,
+                    destination: nativeGain,
+                });
+                await synth.load;
+            } catch (error) {
+                console.warn(`Failed to swap smplr plugin "${newInstrument.plugin}", falling back to grand piano.`, error);
+                synth = new Soundfont(rawContext, {
+                    instrument: 'acoustic_grand_piano' as any,
+                    destination: nativeGain,
+                });
+                await synth.load;
+            }
+            this.synths[trackId] = synth;
+        }
     }
 
     public onPlaybackStop?: () => void;

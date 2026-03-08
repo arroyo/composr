@@ -1,5 +1,17 @@
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
+import json
+import os
+
+# Load instruments dictionary for validation and prompt descriptions
+INSTRUMENTS_FILE = os.path.join(os.path.dirname(__file__), "instruments.json")
+with open(INSTRUMENTS_FILE, 'r') as f:
+    AVAILABLE_INSTRUMENTS = json.load(f)
+
+# Helper lists for standard validation/prompting
+AVAILABLE_ENGINES = list(set([inst["engine"] for inst in AVAILABLE_INSTRUMENTS]))
+AVAILABLE_PLUGINS = list(set([inst["plugin"] for inst in AVAILABLE_INSTRUMENTS]))
+AVAILABLE_PRESETS = list(set([inst["id"] for inst in AVAILABLE_INSTRUMENTS]))
 
 class Note(BaseModel):
     pitch: str = Field(description="The scientific pitch notation (e.g., 'C4', 'D#5', 'F2')")
@@ -8,19 +20,18 @@ class Note(BaseModel):
     velocity: float = Field(default=0.8, description="The strictly calculated velocity/volume of the note, between 0.0 and 1.0")
 
 class InstrumentState(BaseModel):
-    engine: Literal["smplr", "tone"] = Field(
+    engine: Literal["smplr", "tonejs"] = Field(
         default="smplr",
         description=(
-            "The audio engine to use. This MUST match the genre. "
-            "MUST be 'tone' for ANY electronic/synthetic styles (Hip Hop, Trap, EDM, Techno). "
-            "MUST be 'smplr' for ANY acoustic/real-world styles (Classical, Jazz, Country, Folk)."
+            f"The audio synthesis engine to use. Choose freely based on desired sound design. "
+            f"Available engines: {AVAILABLE_ENGINES}. "
+            f"('tonejs' = electronic/synthetic, 'smplr' = acoustic/real-world)"
         )
     )
     plugin: str = Field(
         description=(
-            "The specific synthesizer plugin/class to use for this instrument. "
-            "For engine='smplr', examples: 'Soundfont', 'DrumMachine', 'SplendidGrandPiano'. "
-            "For engine='tone', examples: 'MembraneSynth', 'NoiseSynth', 'MetalSynth', 'PolySynth', 'FMSynth', 'AMSynth'."
+            f"The specific synthesizer plugin/class to use. "
+            f"Must match the chosen engine. Examples: {', '.join([str(p) for p in AVAILABLE_PLUGINS][:5])}..."
         )
     )
     bank: str = Field(
@@ -28,10 +39,8 @@ class InstrumentState(BaseModel):
         description="The sound bank collection. Default is 'factory'. Do not change unless instructed."
     )
     preset: str = Field(description=(
-        "The instrument preset within the chosen engine. "
-        "If engine='tone', use: 'kick', 'snare', 'hihat', 'cymbal', 'bass_synth', 'lead_synth', 'pad', 'fm_bass', 'arp'. "
-        "If engine='smplr', use the exact General MIDI name (e.g. 'acoustic_grand_piano', 'acoustic_guitar_steel', 'violin', 'acoustic_bass') "
-        "or acoustic percussion ('taiko_drum', 'woodblock', 'melodic_tom')."
+        f"The specific instrument preset to use. "
+        f"Must be one of the available instrument IDs from the shared dictionary."
     ))
 
 class Track(BaseModel):
