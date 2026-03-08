@@ -16,6 +16,8 @@ export interface Track {
     id: string;
     instrument: InstrumentState;
     notes: Note[];
+    volume?: number;
+    pan?: number;
 }
 
 export interface Song {

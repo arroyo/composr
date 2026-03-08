@@ -62,14 +62,7 @@ export default function PianoRoll({ song, audioInitialized, onEnsureAudioInit }:
     }
 
     return (
-        <div className="flex flex-col gap-8 p-10 h-full overflow-y-auto">
-            <div className="flex justify-between items-end border-b border-zinc-800/50 pb-4">
-                <div>
-                    <h1 className="text-2xl font-semibold text-zinc-100">Arrangement</h1>
-                    <p className="text-zinc-500 text-sm mt-1">Tempo: {song.tempo} BPM • Time Signature: {song.time_signature.join("/")}</p>
-                </div>
-            </div>
-
+        <div className="flex flex-col gap-8 px-10 pb-10 pt-6 h-full overflow-y-auto">
             {song.tracks.map(track => {
                 const isMuted = mutedTracks.has(track.id);
                 const isSoloed = soloTracks.has(track.id);

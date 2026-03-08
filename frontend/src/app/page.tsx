@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Chat from "@/components/Chat";
 import PianoRoll from "@/components/PianoRoll";
+import Mixer from "@/components/Mixer";
 import TransportTime from "@/components/TransportTime";
 import { Song } from "@/lib/types";
 import { engine } from "@/lib/audio";
@@ -12,6 +13,7 @@ export default function Home() {
   const [song, setSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
+  const [viewMode, setViewMode] = useState<"arrangement" | "mixer">("arrangement");
 
   useEffect(() => {
     engine.onPlaybackStop = () => setIsPlaying(false);
@@ -102,14 +104,46 @@ export default function Home() {
       <div className="flex-1 flex flex-col relative bg-[#111] z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/15 via-zinc-950 to-zinc-950 pointer-events-none" />
 
-        <div className="flex-1 relative z-10 overflow-hidden">
-          <PianoRoll song={song} audioInitialized={audioInitialized} onEnsureAudioInit={async () => {
-            if (!audioInitialized) {
-              await engine.init();
-              setAudioInitialized(true);
-              if (song) await engine.loadSong(song);
-            }
-          }} />
+        {/* Global View Header */}
+        <div className="px-10 pt-10 pb-4 flex justify-between items-end border-b border-zinc-800/50 z-10 relative flex-shrink-0">
+          <div>
+            <div className="flex items-center gap-6">
+              <h1 className="text-2xl font-semibold text-zinc-100 flex items-center gap-4">
+                <button 
+                  onClick={() => setViewMode('arrangement')} 
+                  className={`transition-colors ${viewMode === 'arrangement' ? 'text-zinc-100' : 'text-zinc-600 hover:text-zinc-400'}`}
+                >
+                  Arrangement
+                </button>
+                <span className="text-zinc-800">/</span>
+                <button 
+                  onClick={() => setViewMode('mixer')} 
+                  className={`transition-colors ${viewMode === 'mixer' ? 'text-zinc-100' : 'text-zinc-600 hover:text-zinc-400'}`}
+                >
+                  Mixer
+                </button>
+              </h1>
+            </div>
+            {song ? (
+              <p className="text-zinc-500 text-sm mt-1">Tempo: {song.tempo} BPM • Time Signature: {song.time_signature.join("/")}</p>
+            ) : (
+              <p className="text-zinc-500 text-sm mt-1">Ready to create</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 relative z-10 overflow-hidden flex">
+          {viewMode === "arrangement" ? (
+            <PianoRoll song={song} audioInitialized={audioInitialized} onEnsureAudioInit={async () => {
+              if (!audioInitialized) {
+                await engine.init();
+                setAudioInitialized(true);
+                if (song) await engine.loadSong(song);
+              }
+            }} />
+          ) : (
+            <Mixer song={song} onUpdateSong={handleUpdateSong} audioInitialized={audioInitialized} />
+          )}
         </div>
 
         {/* Transport Controls */}

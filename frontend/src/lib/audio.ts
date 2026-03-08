@@ -133,6 +133,8 @@ export class AudioEngine {
             const channel = new Tone.Channel({
                 mute: this.trackMutes[track.id] || false,
                 solo: this.trackSolos[track.id] || false,
+                volume: track.volume ?? 0,
+                pan: track.pan ?? 0,
             });
             this.channels[track.id] = channel;
             channel.connect(this.reverb!);
@@ -266,6 +268,22 @@ export class AudioEngine {
     public setTrackSolo(trackId: string, solo: boolean) {
         this.trackSolos[trackId] = solo;
         if (this.channels[trackId]) this.channels[trackId].solo = solo;
+    }
+
+    public setTrackVolume(trackId: string, volumeDb: number) {
+        if (this.channels[trackId]) {
+            this.channels[trackId].volume.value = volumeDb;
+        }
+    }
+
+    public setTrackPan(trackId: string, pan: number) {
+        if (this.channels[trackId]) {
+            this.channels[trackId].pan.value = pan;
+        }
+    }
+
+    public setMasterVolume(volumeDb: number) {
+        Tone.Destination.volume.value = volumeDb;
     }
 
     public onPlaybackStop?: () => void;

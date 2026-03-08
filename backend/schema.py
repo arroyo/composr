@@ -37,7 +37,15 @@ class InstrumentState(BaseModel):
 class Track(BaseModel):
     id: str = Field(description="A unique identifier for the track (e.g., 'kick', 'snare', 'bass', 'lead')")
     instrument: InstrumentState = Field(description="The complete configuration for the instrument sound (engine, preset, and bank)")
-    notes: List[Note] = Field(default_factory=list, description="A chronological array of notes generated for this track")
+    notes: list[Note] = Field(default_factory=list, description="The sequence of notes for this track")
+    volume: float = Field(
+        default=0.0,
+        description="Track volume in decibels (dB). Default is 0.0. Range is typically -60.0 to 6.0."
+    )
+    pan: float = Field(
+        default=0.0,
+        description="Track audio panning. Default is 0.0 (center). Range is -1.0 (hard left) to 1.0 (hard right)."
+    )
 
 class Song(BaseModel):
     tempo: int = Field(default=120, description="The Beats Per Minute (BPM) of the song")
