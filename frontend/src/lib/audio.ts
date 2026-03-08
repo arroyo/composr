@@ -2,25 +2,123 @@ import * as Tone from 'tone';
 import { Soundfont } from 'smplr';
 import { Song, Track, Note } from './types';
 
+// Tone.js synth instance types
+type ToneSynthInstance =
+    | Tone.PolySynth
+    | Tone.MembraneSynth
+    | Tone.MetalSynth
+    | Tone.NoiseSynth;
+
+type AnySynth = Soundfont | ToneSynthInstance;
+
+/**
+ * Maps a descriptive instrument name (from engine="tone" tracks) to a configured
+ * Tone.js synthesizer connected to the given channel.
+ */
+function createToneSynth(instrument: string, channel: Tone.Channel): ToneSynthInstance {
+    const name = instrument.toLowerCase();
+
+    // 808 / bass drum / kick
+    if (name.includes('kick') || name.includes('808') || name.includes('bass_drum')) {
+        return new Tone.MembraneSynth({
+            pitchDecay: 0.08,
+            octaves: 6,
+            envelope: { attack: 0.001, decay: 0.35, sustain: 0, release: 0.15 },
+        }).connect(channel);
+    }
+
+    // Snare / clap / rimshot
+    if (name.includes('snare') || name.includes('clap') || name.includes('rimshot')) {
+        return new Tone.NoiseSynth({
+            noise: { type: 'white' },
+            envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 },
+        }).connect(channel);
+    }
+
+    // Hi-hat / cymbal / metallic percussion
+    if (name.includes('hihat') || name.includes('hi_hat') || name.includes('cymbal') ||
+        name.includes('crash') || name.includes('ride')) {
+        const metalSynth = new Tone.MetalSynth({
+            envelope: { attack: 0.001, decay: 0.1, release: 0.1 },
+            harmonicity: 5.1,
+            modulationIndex: 32,
+            resonance: 4000,
+            octaves: 1.5,
+        }).connect(channel);
+        metalSynth.frequency.value = 400;
+        return metalSynth;
+    }
+
+    // FM bass / acid bass
+    if (name.includes('fm') || name.includes('acid')) {
+        return new Tone.PolySynth(Tone.FMSynth, {
+            harmonicity: 3,
+            modulationIndex: 10,
+            envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.8 },
+            modulation: { type: 'square' },
+            modulationEnvelope: { attack: 0.2, decay: 0.01, sustain: 1, release: 0.5 },
+        }).connect(channel);
+    }
+
+    // Warm pad / AM synth
+    if (name.includes('pad') || name.includes('am_')) {
+        return new Tone.PolySynth(Tone.AMSynth, {
+            harmonicity: 2,
+            envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 1.0 },
+            modulation: { type: 'sine' },
+            modulationEnvelope: { attack: 0.5, decay: 0, sustain: 1, release: 0.5 },
+        }).connect(channel);
+    }
+
+    // Default: bass, lead, arp, synth — bright sawtooth PolySynth
+    return new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: 'sawtooth' },
+        envelope: { attack: 0.005, decay: 0.1, sustain: 0.6, release: 0.4 },
+    }).connect(channel);
+}
+
+/**
+ * Trigger a note on any Tone.js synth, handling mono vs poly vs noise correctly.
+ */
+function triggerToneNote(
+    synth: ToneSynthInstance,
+    pitch: string,
+    durationSecs: number,
+    time: number,
+    velocity: number
+) {
+    if (synth instanceof Tone.NoiseSynth) {
+        synth.triggerAttackRelease(durationSecs, time, velocity);
+    } else if (synth instanceof Tone.MembraneSynth || synth instanceof Tone.MetalSynth) {
+        synth.triggerAttackRelease(pitch, durationSecs, time, velocity);
+    } else {
+        (synth as Tone.PolySynth).triggerAttackRelease(pitch, durationSecs, time, velocity);
+    }
+}
+
+function isToneSynth(s: AnySynth): s is ToneSynthInstance {
+    return (
+        s instanceof Tone.PolySynth ||
+        s instanceof Tone.MembraneSynth ||
+        s instanceof Tone.MetalSynth ||
+        s instanceof Tone.NoiseSynth
+    );
+}
+
 export class AudioEngine {
-    private synths: Record<string, Soundfont> = {};
+    private synths: Record<string, AnySynth> = {};
     private channels: Record<string, Tone.Channel> = {};
     private parts: Tone.Part[] = [];
     private reverb: Tone.Reverb | null = null;
-    
-    // User preferences
+
     public trackMutes: Record<string, boolean> = {};
     public trackSolos: Record<string, boolean> = {};
 
-    // Initializes audio context on user interaction
     async init() {
         await Tone.start();
-        
+
         if (!this.reverb) {
-            this.reverb = new Tone.Reverb({
-                decay: 1.5,
-                preDelay: 0.01,
-            }).toDestination();
+            this.reverb = new Tone.Reverb({ decay: 1.5, preDelay: 0.01 }).toDestination();
         }
 
         Tone.Transport.stop();
@@ -28,134 +126,159 @@ export class AudioEngine {
         this.cleanup();
     }
 
-    // Parses song state, downloads necessary soundfonts, and schedules all notes
     public async loadSong(song: Song) {
         Tone.Transport.stop();
         Tone.Transport.cancel();
         this.cleanup();
 
-        // Set global tempo
         Tone.Transport.bpm.value = song.tempo;
         Tone.Transport.timeSignature = song.time_signature;
 
         let maxEndTime = 0;
 
         const loadPromises = song.tracks.map(async (track) => {
-            // Create a channel for this track
+            // Create mixing channel
             const channel = new Tone.Channel({
                 mute: this.trackMutes[track.id] || false,
-                solo: this.trackSolos[track.id] || false
+                solo: this.trackSolos[track.id] || false,
             });
             this.channels[track.id] = channel;
-
-            // Connect channel to our shared Tone.js reverb
             channel.connect(this.reverb!);
 
-            // Create a native GainNode to act as a bridge from smplr to Tone.js
-            const rawContext = Tone.getContext().rawContext as AudioContext;
-            const nativeGain = rawContext.createGain();
-            // In Tone js, native Web Audio nodes can connect to Tone objects seamlessly 
-            Tone.connect(nativeGain as any, channel);
-
-            // Load the soundfont dynamically based on the requested instrument
-            // e.g. "acoustic_guitar_steel", "acoustic_grand_piano"
-            let synth: Soundfont;
-            try {
-                synth = new Soundfont(rawContext, {
-                    instrument: track.instrument as any,
-                    destination: nativeGain
-                });
-                await synth.load;
-            } catch (error) {
-                console.warn(`Failed to load instrument "${track.instrument}", falling back to acoustic_grand_piano.`, error);
-                synth = new Soundfont(rawContext, {
-                    instrument: "acoustic_grand_piano" as any,
-                    destination: nativeGain
-                });
-                await synth.load;
-            }
-
-            this.synths[track.id] = synth;
-
-            // Calculate max end time for this track
+            // Calculate max end time
             track.notes.forEach(n => {
                 const startTime = Tone.Time(n.start_time).toSeconds();
                 const duration = Tone.Time(n.duration).toSeconds();
-                if (startTime + duration > maxEndTime) {
-                    maxEndTime = startTime + duration;
-                }
+                if (startTime + duration > maxEndTime) maxEndTime = startTime + duration;
             });
 
-            // Schedule notes using Tone.js transport timing but triggering smplr
-            const part = new Tone.Part((time, value) => {
-                // Tone.js provides seconds (time), smplr needs seconds for triggering
-                synth.start({
-                    note: value.note,
-                    time: time,
-                    duration: Tone.Time(value.duration).toSeconds(),
-                    velocity: Math.floor(value.velocity * 127), // smplr uses MIDI velocity [0-127]
-                });
-            }, track.notes.map(n => ({
-                time: n.start_time,
-                note: n.pitch,
-                duration: n.duration,
-                velocity: n.velocity
-            }))).start(0);
+            // Determine audio engine: explicit field > infer from instrument name
+            const electronicKeywords = ['kick', '808', 'snare', 'clap', 'hihat', 'hi_hat',
+                'cymbal', 'crash', 'ride', 'synth', 'pad', 'arp', 'lead',
+                'bass_synth', 'fm_bass', 'fm_', 'am_', 'lead_synth', 'acid'];
+            
+            // Acoustic drums that might incorrectly trigger electronic if 'drum' was in the array above
+            const acousticKeywords = ['taiko_drum', 'synth_drum', 'woodblock', 'reverse_cymbal', 'melodic_tom', 'steel_drums'];
 
-            this.parts.push(part);
+            const instrumentLower = (track.instrument || '').toLowerCase();
+            
+            // Explicit engine setting takes precedence. 
+            // If missing, look for acoustic exact matches, otherwise check electronic keywords.
+            let useElectronic = false;
+            if (track.engine === 'tone') {
+                useElectronic = true;
+            } else if (track.engine === 'smplr') {
+                useElectronic = false;
+            } else if (acousticKeywords.some(kw => instrumentLower.includes(kw))) {
+                useElectronic = false;
+            } else if (instrumentLower.startsWith('tone:') || electronicKeywords.some(kw => instrumentLower.includes(kw))) {
+                useElectronic = true;
+            }
+
+            if (useElectronic) {
+                console.log(`[AudioEngine] "${track.id}" → Tone.js (${track.instrument})`);
+
+                const synth = createToneSynth(track.instrument, channel);
+                this.synths[track.id] = synth;
+
+                const part = new Tone.Part((time, value) => {
+                    const durationSecs = Tone.Time(value.duration).toSeconds();
+                    triggerToneNote(synth, value.note, durationSecs, time, value.velocity);
+                }, track.notes.map(n => ({
+                    time: n.start_time,
+                    note: n.pitch,
+                    duration: n.duration,
+                    velocity: n.velocity,
+                }))).start(0);
+
+                this.parts.push(part);
+
+            } else {
+                console.log(`[AudioEngine] "${track.id}" → smplr (${track.instrument})`);
+
+                const rawContext = Tone.getContext().rawContext as AudioContext;
+                const nativeGain = rawContext.createGain();
+                Tone.connect(nativeGain as any, channel);
+
+                let synth: Soundfont;
+                try {
+                    synth = new Soundfont(rawContext, {
+                        instrument: track.instrument as any,
+                        destination: nativeGain,
+                    });
+                    await synth.load;
+                } catch (error) {
+                    console.warn(`Failed to load "${track.instrument}", falling back to acoustic_grand_piano.`, error);
+                    synth = new Soundfont(rawContext, {
+                        instrument: 'acoustic_grand_piano' as any,
+                        destination: nativeGain,
+                    });
+                    await synth.load;
+                }
+
+                this.synths[track.id] = synth;
+
+                const part = new Tone.Part((time, value) => {
+                    (synth as Soundfont).start({
+                        note: value.note,
+                        time,
+                        duration: Tone.Time(value.duration).toSeconds(),
+                        velocity: Math.floor(value.velocity * 127),
+                    });
+                }, track.notes.map(n => ({
+                    time: n.start_time,
+                    note: n.pitch,
+                    duration: n.duration,
+                    velocity: n.velocity,
+                }))).start(0);
+
+                this.parts.push(part);
+            }
         });
 
-        // Wait completely until all Soundfonts are downloaded before allowing playback
         await Promise.all(loadPromises);
 
-        // Schedule automatic stop slightly after the last note ends
         if (maxEndTime > 0) {
             Tone.Transport.schedule((time) => {
-                Tone.Draw.schedule(() => {
-                    this.stop();
-                }, time);
-            }, maxEndTime + 2.0); // 2 second tail for reverb
+                Tone.Draw.schedule(() => { this.stop(); }, time);
+            }, maxEndTime + 2.0);
         }
     }
 
     public setTrackMute(trackId: string, muted: boolean) {
         this.trackMutes[trackId] = muted;
-        if (this.channels[trackId]) {
-            this.channels[trackId].mute = muted;
-        }
+        if (this.channels[trackId]) this.channels[trackId].mute = muted;
     }
 
     public setTrackSolo(trackId: string, solo: boolean) {
         this.trackSolos[trackId] = solo;
-        if (this.channels[trackId]) {
-            this.channels[trackId].solo = solo;
-        }
+        if (this.channels[trackId]) this.channels[trackId].solo = solo;
     }
 
     public onPlaybackStop?: () => void;
 
     public play() {
-        if (Tone.Transport.state !== 'started') {
-            Tone.Transport.start();
-        }
+        if (Tone.Transport.state !== 'started') Tone.Transport.start();
     }
 
-    // Plays a single note immediately for previewing
-    // We get the synth for the track, and trigger it using immediate time
-    public playNote(trackId: string, pitch: string, duration: string | number = "8n", velocity: number = 0.8) {
+    public playNote(trackId: string, pitch: string, duration: string | number = '8n', velocity: number = 0.8) {
         const synth = this.synths[trackId];
         if (!synth) {
-            console.warn(`No synth found for track ${trackId} to play note`);
+            console.warn(`No synth for track "${trackId}"`);
             return;
         }
 
-        // Trigger note immediately
-        synth.start({
-            note: pitch,
-            time: Tone.now(),
-            duration: Tone.Time(duration).toSeconds(),
-            velocity: Math.floor(velocity * 127)
-        });
+        if (isToneSynth(synth)) {
+            const durationSecs = Tone.Time(duration).toSeconds();
+            triggerToneNote(synth, pitch, durationSecs, Tone.now(), velocity);
+        } else {
+            (synth as Soundfont).start({
+                note: pitch,
+                time: Tone.now(),
+                duration: Tone.Time(duration).toSeconds(),
+                velocity: Math.floor(velocity * 127),
+            });
+        }
     }
 
     public pause() {
@@ -164,11 +287,14 @@ export class AudioEngine {
 
     public stop() {
         Tone.Transport.stop();
-        // Stop any lingering sounds in the instruments
-        Object.values(this.synths).forEach(s => s.stop());
-        if (this.onPlaybackStop) {
-            this.onPlaybackStop();
-        }
+        Object.values(this.synths).forEach(s => {
+            if (isToneSynth(s)) {
+                (s as Tone.PolySynth).releaseAll?.();
+            } else {
+                (s as Soundfont).stop();
+            }
+        });
+        if (this.onPlaybackStop) this.onPlaybackStop();
     }
 
     public isPlaying() {
@@ -179,13 +305,14 @@ export class AudioEngine {
         this.parts.forEach(p => p.dispose());
         this.parts = [];
 
+        Object.values(this.synths).forEach(s => {
+            if (isToneSynth(s)) s.dispose();
+        });
+        this.synths = {};
+
         Object.values(this.channels).forEach(c => c.dispose());
         this.channels = {};
-
-        // Optional: smplr doesn't have a rigid dispose(), but we clear references
-        this.synths = {};
     }
 }
 
-// Export singleton instance
 export const engine = new AudioEngine();

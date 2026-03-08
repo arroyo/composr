@@ -7,7 +7,8 @@ export interface Note {
 
 export interface Track {
     id: string;
-    instrument: string; // e.g. 'PolySynth'
+    engine: "smplr" | "tone";
+    instrument: string; // e.g. 'kick', 'snare', 'acoustic_grand_piano'
     notes: Note[];
 }
 

@@ -8,8 +8,21 @@ class Note(BaseModel):
     velocity: float = Field(default=0.8, description="The strictly calculated velocity/volume of the note, between 0.0 and 1.0")
 
 class Track(BaseModel):
-    id: str = Field(description="A unique identifier for the track (e.g., 'lead_synth', 'bass', 'pads')")
-    instrument: str = Field(description="The exact General MIDI instrument name to use (e.g., 'acoustic_grand_piano', 'acoustic_guitar_steel', 'electric_bass_finger')")
+    id: str = Field(description="A unique identifier for the track (e.g., 'kick', 'snare', 'bass', 'lead')")
+    engine: Literal["smplr", "tone"] = Field(
+        default="smplr",
+        description=(
+            "The audio engine to use. This MUST match the genre. "
+            "MUST be 'tone' for ANY electronic/synthetic styles (Hip Hop, Trap, EDM, Techno). "
+            "MUST be 'smplr' for ANY acoustic/real-world styles (Classical, Jazz, Country, Folk)."
+        )
+    )
+    instrument: str = Field(description=(
+        "The instrument within the chosen engine. "
+        "If engine='tone', use: 'kick', 'snare', 'hihat', 'cymbal', 'bass_synth', 'lead_synth', 'pad', 'fm_bass', 'arp'. "
+        "If engine='smplr', use the exact General MIDI name (e.g. 'acoustic_grand_piano', 'acoustic_guitar_steel', 'violin', 'acoustic_bass') "
+        "or acoustic percussion ('taiko_drum', 'woodblock', 'melodic_tom')."
+    ))
     notes: List[Note] = Field(default_factory=list, description="A chronological array of notes generated for this track")
 
 class Song(BaseModel):

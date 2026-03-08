@@ -13,20 +13,50 @@ class AgentState(TypedDict):
     song: Song
 
 # --- Global In-Memory Song State ---
-# For a single-agent backend, we will hold the song state in memory temporarily.
 current_song = Song()
 
 # --- Tools ---
 @tool
-def create_track(track_id: str, instrument: str) -> str:
-    """Creates a new track in the song arrangement if it does not already exist."""
+def create_track(track_id: str, engine: str, instrument: str) -> str:
+    """Creates a new instrument track.
+
+    Args:
+        track_id: A short unique name for the track (e.g. 'kick', 'snare', 'bass', 'lead').
+
+        engine: MUST be either "tone" or "smplr".
+            - Use "tone" for ALL electronic/synthetic sounds (e.g. Hip Hop, Trap, EDM, Techno).
+              This includes ALL electronic drums, 808s, synth basses, EDM leads, pads, and arps.
+            - Use "smplr" for ALL acoustic/real-instrument sounds (e.g. Rock, Folk, Classical, Jazz).
+              This includes piano, acoustic guitar, violin, cello, bass guitar, acoustic drums, etc.
+
+        instrument: The specific sound within the engine.
+            If engine="tone", choose from:
+              "kick"       -> 808 / bass drum
+              "snare"      -> snare drum / clap
+              "hihat"      -> hi-hat (closed or open)
+              "cymbal"     -> crash / ride cymbal
+              "bass_synth" -> synth bass line
+              "lead_synth" -> mono lead melody
+              "pad"        -> atmospheric chord pad
+              "fm_bass"    -> punchy FM bass
+              "arp"        -> arpeggio synth
+
+            If engine="smplr", use the exact General MIDI name or smplr drum names:
+              Melodic: "acoustic_grand_piano", "electric_piano_1", "acoustic_guitar_steel",
+                       "acoustic_guitar_nylon", "electric_guitar_clean", "violin", "viola",
+                       "cello", "contrabass", "flute", "clarinet", "oboe", "trumpet",
+                       "trombone", "acoustic_bass", "electric_bass_finger", "electric_bass_pick",
+                       "orchestral_harp", "banjo", "sitar", "church_organ", "accordion"
+              Drums: "taiko_drum" (kick/toms), "woodblock" (snare/sticks/rim), "reverse_cymbal",
+                     "steel_drums", "synth_drum", "melodic_tom"
+    """
     global current_song
     if current_song.get_track(track_id):
         return f"Track '{track_id}' already exists."
-    
-    new_track = Track(id=track_id, instrument=instrument)
+
+    new_track = Track(id=track_id, engine=engine, instrument=instrument)
     current_song.tracks.append(new_track)
-    return f"Created new track: {track_id} using {instrument}."
+    return f"Created track '{track_id}' (engine={engine}, instrument={instrument})."
 
 @tool
 def add_notes(track_id: str, notes: list[Note]) -> str:
@@ -35,12 +65,9 @@ def add_notes(track_id: str, notes: list[Note]) -> str:
     track = current_song.get_track(track_id)
     if not track:
         return f"Error: Track '{track_id}' does not exist. Please create it first."
-    
-    # Extend the list with parsed Notes
+
     track.notes.extend(notes)
-    # Re-sort notes by their start_time mathematically (basic lexical sort handles uniform formatting like '0:0:0')
     track.notes.sort(key=lambda x: x.start_time)
-    
     return f"Added {len(notes)} notes to track '{track_id}'."
 
 @tool
@@ -58,15 +85,23 @@ def clear_song() -> str:
     return "Song has been cleared."
 
 @tool
-def update_track_instrument(track_id: str, new_instrument: str) -> str:
-    """Changes the synthesizer instrument of an existing track, preserving its notes."""
+def update_track_instrument(track_id: str, engine: str, new_instrument: str) -> str:
+    """Changes the engine and instrument of an existing track, preserving its notes.
+
+    Args:
+        track_id: The ID of the track to update.
+        engine: "tone" for electronic synths, "smplr" for acoustic/MIDI instruments.
+        new_instrument: The new instrument name within the chosen engine
+            (same options as create_track).
+    """
     global current_song
     track = current_song.get_track(track_id)
     if not track:
         return f"Error: Track '{track_id}' does not exist."
-    
+
+    track.engine = engine
     track.instrument = new_instrument
-    return f"Updated track '{track_id}' to use instrument {new_instrument}."
+    return f"Updated track '{track_id}' to engine={engine}, instrument={new_instrument}."
 
 tools = [create_track, add_notes, change_tempo, clear_song, update_track_instrument]
 tool_node = ToolNode(tools)
@@ -78,43 +113,74 @@ load_dotenv()
 llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 llm_with_tools = llm.bind_tools(tools)
 
-system_prompt = """You are an AI Music Producer. Your job is to compose symbolic music. 
-You will receive requests from the user to construct a song arrangement.
+system_prompt = """You are an AI Music Producer. You compose symbolic music using tool calls.
 
 CRITICAL BEHAVIORAL RULE:
-Unless the user explicitly asks you to start a new song, or explicitly asks you to restart, assume they want you to add to the existing background arrangement. DO NOT use `clear_song` when processing a follow-up request. Add new tracks, or modify existing tracks. 
+Unless the user says "start over", "clear", or "new song", ADD to the existing arrangement. Never call clear_song on follow-up requests.
 
-GENRE-APPROPRIATE INSTRUMENTS:
-Use synths that are appropriate for the requested genre:
-- Country: use acoustic instruments (e.g., acoustic guitar, fiddle, upright bass).
-- Rock: use electric guitars, electric bass, and drums.
-- Electronic / Hip Hop / EDM: use synthesizers (e.g., synth bass, synth leads, drum machines), NOT acoustic instruments.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ENGINE SELECTION — THIS IS MANDATORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-You have access to tools that modify the current song state:
-- create_track: Creates a new instrument track. You must provide a valid General MIDI instrument name (e.g., 'acoustic_grand_piano', 'acoustic_guitar_steel', 'electric_bass_finger', 'synth_drum', 'violin', etc). Choose an instrument that fits the requested genre.
-- update_track_instrument: Changes the synthesizer instrument of an existing track, preserving all its notes. Use this if the user asks for a different sound on an existing track.
-- add_notes: Adds a list of `Note` objects to a track. Notes use Tone.js scheduling notation (e.g. C4 pitch, '0:0:0' starts at bar 0, beat 0, sixteenth 0).
-- change_tempo: Sets the BPM.
-- clear_song: Deletes everything. DO NOT call this unless the user says "clear the song", "delete everything", or "start a new song".
+Your first step must ALWAYS be determining the genre of the requested song:
+1. Is it an Electronic Genre? (Hip Hop, Trap, EDM, House, Techno, Synthwave) -> Use ONLY `tone` engine.
+2. Is it an Acoustic Genre? (Country, Folk, Classical, Jazz, Acoustic Rock) -> Use ONLY `smplr` engine.
 
-When writing notes, you must accurately calculate the Tone.js `start_time` values ('bars:beats:sixths').
-A 4/4 measure has 4 beats, and each beat contains four 16th notes.
-Example of a C major scale quarter notes:
-- C4 at 0:0:0
-- D4 at 0:1:0
-- E4 at 0:2:0
-- F4 at 0:3:0
-- G4 at 1:0:0 (next measure)
+When calling create_track, you MUST set the `engine` field correctly based on the genre above:
 
-Once you have made the necessary tool calls to fulfill the user's compositional request, respond with a friendly message describing what you created.
+NEVER use engine="smplr" for drums in hip hop, trap, or EDM.
+NEVER use engine="smplr" for synth bass, leads, or pads in electronic genres.
+NEVER use engine="tone" for piano, guitar, violin, or acoustic drums in acoustic genres.
+
+GENRE RULESET:
+
+  Electronic Genres (Hip Hop / Trap / EDM / House / Techno) — ALL drums and synths use engine="tone":
+    kick drum     → engine="tone", instrument="kick"
+    snare / clap  → engine="tone", instrument="snare"
+    hi-hat        → engine="tone", instrument="hihat"
+    cymbal        → engine="tone", instrument="cymbal"
+    808 bass      → engine="tone", instrument="fm_bass"
+    synth bass    → engine="tone", instrument="bass_synth"
+    lead synth    → engine="tone", instrument="lead_synth"
+    pads          → engine="tone", instrument="pad"
+
+  Acoustic Genres (Country / Folk / Classical / Jazz) — ALL instruments use engine="smplr":
+    guitar        → engine="smplr", instrument="acoustic_guitar_steel"
+    piano         → engine="smplr", instrument="acoustic_grand_piano"
+    strings       → engine="smplr", instrument="violin" / "cello"
+    bass          → engine="smplr", instrument="acoustic_bass"
+    drums (kick/toms) → engine="smplr", instrument="taiko_drum"
+    drums (snare/rim) → engine="smplr", instrument="woodblock"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NOTE WRITING RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Pitch: scientific notation (C4, D#3, Bb2)
+- For kick (tone): use low pitches like C1 or B0
+- For snare (tone): pitch is ignored, use C4 as placeholder
+- For hihat (tone): use high pitches like A5 or F#5
+- For acoustic percussion (smplr): use C4
+- start_time: 'bars:beats:sixteenths' — in 4/4: Beat1=0:0:0, Beat2=0:1:0, Beat3=0:2:0, Beat4=0:3:0
+- duration: '4n'=quarter, '8n'=eighth, '16n'=sixteenth
+
+Once done with tool calls, respond with a friendly message describing what you created.
 """
 
 def agent_node(state: AgentState):
     messages = state['messages']
-    
-    # Prepend the system prompt if it's the first message
-    if not isinstance(messages[0], SystemMessage):
-         messages = [SystemMessage(content=system_prompt)] + messages
+
+    try:
+        song_json = current_song.model_dump_json(indent=2)
+    except AttributeError:
+        song_json = current_song.json(indent=2)
+        
+    context_prompt = f"{system_prompt}\n\nCURRENT SONG STATE:\n{song_json}"
+
+    if messages and isinstance(messages[0], SystemMessage):
+        messages = [SystemMessage(content=context_prompt)] + messages[1:]
+    else:
+        messages = [SystemMessage(content=context_prompt)] + messages
 
     response = llm_with_tools.invoke(messages)
     return {"messages": [response], "song": current_song}
