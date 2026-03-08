@@ -81,7 +81,7 @@ export default function PianoRoll({ song, audioInitialized, onEnsureAudioInit }:
                             <div className="flex items-center gap-4">
                                 <h3 className="font-medium text-zinc-200 text-lg">{track.id}</h3>
                                 <span className="text-xs px-2 py-1 rounded-md bg-zinc-800/80 text-zinc-300 font-mono border border-zinc-700/30">
-                                    {track.instrument}
+                                    {track.instrument?.preset || "unknown"}
                                 </span>
                             </div>
                             

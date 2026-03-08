@@ -17,7 +17,7 @@ current_song = Song()
 
 # --- Tools ---
 @tool
-def create_track(track_id: str, engine: str, instrument: str) -> str:
+def create_track(track_id: str, engine: str, plugin: str, bank: str, preset: str) -> str:
     """Creates a new instrument track.
 
     Args:
@@ -28,9 +28,14 @@ def create_track(track_id: str, engine: str, instrument: str) -> str:
               This includes ALL electronic drums, 808s, synth basses, EDM leads, pads, and arps.
             - Use "smplr" for ALL acoustic/real-instrument sounds (e.g. Rock, Folk, Classical, Jazz).
               This includes piano, acoustic guitar, violin, cello, bass guitar, acoustic drums, etc.
+        plugin: The synthesizer class handling the sound.
+            If engine="tone", choose: "MembraneSynth", "NoiseSynth", "MetalSynth", "PolySynth", "FMSynth", "AMSynth".
+            If engine="smplr", choose: "Soundfont", "DrumMachine", "SplendidGrandPiano".
 
-        instrument: The specific sound within the engine.
-            If engine="tone", choose from:
+        bank: The sound bank collection. MUST be 'factory' by default.
+
+        preset: The specific sound within the engine.
+            If engine="tone", examples:
               "kick"       -> 808 / bass drum
               "snare"      -> snare drum / clap
               "hihat"      -> hi-hat (closed or open)
@@ -54,9 +59,19 @@ def create_track(track_id: str, engine: str, instrument: str) -> str:
     if current_song.get_track(track_id):
         return f"Track '{track_id}' already exists."
 
-    new_track = Track(id=track_id, engine=engine, instrument=instrument)
+    from schema import InstrumentState
+    
+    # Force cast to prevent LLM sending arbitrary nested strings instead of kwargs
+    inst_state = InstrumentState(
+        engine=str(engine), 
+        plugin=str(plugin),
+        bank=str(bank), 
+        preset=str(preset)
+    )
+    
+    new_track = Track(id=str(track_id), instrument=inst_state)
     current_song.tracks.append(new_track)
-    return f"Created track '{track_id}' (engine={engine}, instrument={instrument})."
+    return f"Created track '{track_id}' (engine={engine}, plugin={plugin}, bank={bank}, preset={preset})."
 
 @tool
 def add_notes(track_id: str, notes: list[Note]) -> str:
@@ -85,13 +100,15 @@ def clear_song() -> str:
     return "Song has been cleared."
 
 @tool
-def update_track_instrument(track_id: str, engine: str, new_instrument: str) -> str:
-    """Changes the engine and instrument of an existing track, preserving its notes.
+def update_track_instrument(track_id: str, engine: str, plugin: str, bank: str, preset: str) -> str:
+    """Changes the engine, plugin, bank, and preset of an existing track, preserving its notes.
 
     Args:
         track_id: The ID of the track to update.
         engine: "tone" for electronic synths, "smplr" for acoustic/MIDI instruments.
-        new_instrument: The new instrument name within the chosen engine
+        plugin: The specific synth class (e.g. "PolySynth" or "Soundfont").
+        bank: The sound bank collection (default "factory").
+        preset: The new instrument preset within the chosen engine
             (same options as create_track).
     """
     global current_song
@@ -99,9 +116,11 @@ def update_track_instrument(track_id: str, engine: str, new_instrument: str) -> 
     if not track:
         return f"Error: Track '{track_id}' does not exist."
 
-    track.engine = engine
-    track.instrument = new_instrument
-    return f"Updated track '{track_id}' to engine={engine}, instrument={new_instrument}."
+    track.instrument.engine = str(engine)
+    track.instrument.plugin = str(plugin)
+    track.instrument.bank = str(bank)
+    track.instrument.preset = str(preset)
+    return f"Updated track '{track_id}' to engine={engine}, plugin={plugin}, bank={bank}, preset={preset}."
 
 tools = [create_track, add_notes, change_tempo, clear_song, update_track_instrument]
 tool_node = ToolNode(tools)
@@ -135,22 +154,22 @@ NEVER use engine="tone" for piano, guitar, violin, or acoustic drums in acoustic
 GENRE RULESET:
 
   Electronic Genres (Hip Hop / Trap / EDM / House / Techno) — ALL drums and synths use engine="tone":
-    kick drum     → engine="tone", instrument="kick"
-    snare / clap  → engine="tone", instrument="snare"
-    hi-hat        → engine="tone", instrument="hihat"
-    cymbal        → engine="tone", instrument="cymbal"
-    808 bass      → engine="tone", instrument="fm_bass"
-    synth bass    → engine="tone", instrument="bass_synth"
-    lead synth    → engine="tone", instrument="lead_synth"
-    pads          → engine="tone", instrument="pad"
+    kick drum     → engine="tone", plugin="MembraneSynth", bank="factory", preset="kick"
+    snare / clap  → engine="tone", plugin="NoiseSynth", bank="factory", preset="snare"
+    hi-hat        → engine="tone", plugin="MetalSynth", bank="factory", preset="hihat"
+    cymbal        → engine="tone", plugin="MetalSynth", bank="factory", preset="cymbal"
+    808 bass      → engine="tone", plugin="MembraneSynth", bank="factory", preset="808"
+    synth bass    → engine="tone", plugin="PolySynth", bank="factory", preset="bass_synth"
+    lead synth    → engine="tone", plugin="PolySynth", bank="factory", preset="lead_synth"
+    pads          → engine="tone", plugin="AMSynth", bank="factory", preset="pad"
 
   Acoustic Genres (Country / Folk / Classical / Jazz) — ALL instruments use engine="smplr":
-    guitar        → engine="smplr", instrument="acoustic_guitar_steel"
-    piano         → engine="smplr", instrument="acoustic_grand_piano"
-    strings       → engine="smplr", instrument="violin" / "cello"
-    bass          → engine="smplr", instrument="acoustic_bass"
-    drums (kick/toms) → engine="smplr", instrument="taiko_drum"
-    drums (snare/rim) → engine="smplr", instrument="woodblock"
+    guitar        → engine="smplr", plugin="Soundfont", bank="factory", preset="acoustic_guitar_steel"
+    piano (classic) → engine="smplr", plugin="SplendidGrandPiano", bank="factory", preset="acoustic_grand_piano"
+    piano (lofi)  → engine="smplr", plugin="Soundfont", bank="factory", preset="electric_piano_1"
+    strings       → engine="smplr", plugin="Soundfont", bank="factory", preset="violin" / "cello"
+    bass          → engine="smplr", plugin="Soundfont", bank="factory", preset="acoustic_bass"
+    drums         → engine="smplr", plugin="DrumMachine", bank="factory", preset="TR-808" / "Acoustic"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NOTE WRITING RULES

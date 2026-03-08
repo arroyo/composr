@@ -5,10 +5,16 @@ export interface Note {
     velocity: number;
 }
 
+export interface InstrumentState {
+    engine: "smplr" | "tone";
+    plugin: string;
+    bank: string;
+    preset: string;
+}
+
 export interface Track {
     id: string;
-    engine: "smplr" | "tone";
-    instrument: string; // e.g. 'kick', 'snare', 'acoustic_grand_piano'
+    instrument: InstrumentState;
     notes: Note[];
 }
 

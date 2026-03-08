@@ -7,8 +7,7 @@ class Note(BaseModel):
     duration: str = Field(description="The duration of the note (e.g., '4n' for quarter note, '8n' for eighth note)")
     velocity: float = Field(default=0.8, description="The strictly calculated velocity/volume of the note, between 0.0 and 1.0")
 
-class Track(BaseModel):
-    id: str = Field(description="A unique identifier for the track (e.g., 'kick', 'snare', 'bass', 'lead')")
+class InstrumentState(BaseModel):
     engine: Literal["smplr", "tone"] = Field(
         default="smplr",
         description=(
@@ -17,12 +16,27 @@ class Track(BaseModel):
             "MUST be 'smplr' for ANY acoustic/real-world styles (Classical, Jazz, Country, Folk)."
         )
     )
-    instrument: str = Field(description=(
-        "The instrument within the chosen engine. "
+    plugin: str = Field(
+        description=(
+            "The specific synthesizer plugin/class to use for this instrument. "
+            "For engine='smplr', examples: 'Soundfont', 'DrumMachine', 'SplendidGrandPiano'. "
+            "For engine='tone', examples: 'MembraneSynth', 'NoiseSynth', 'MetalSynth', 'PolySynth', 'FMSynth', 'AMSynth'."
+        )
+    )
+    bank: str = Field(
+        default="factory",
+        description="The sound bank collection. Default is 'factory'. Do not change unless instructed."
+    )
+    preset: str = Field(description=(
+        "The instrument preset within the chosen engine. "
         "If engine='tone', use: 'kick', 'snare', 'hihat', 'cymbal', 'bass_synth', 'lead_synth', 'pad', 'fm_bass', 'arp'. "
         "If engine='smplr', use the exact General MIDI name (e.g. 'acoustic_grand_piano', 'acoustic_guitar_steel', 'violin', 'acoustic_bass') "
         "or acoustic percussion ('taiko_drum', 'woodblock', 'melodic_tom')."
     ))
+
+class Track(BaseModel):
+    id: str = Field(description="A unique identifier for the track (e.g., 'kick', 'snare', 'bass', 'lead')")
+    instrument: InstrumentState = Field(description="The complete configuration for the instrument sound (engine, preset, and bank)")
     notes: List[Note] = Field(default_factory=list, description="A chronological array of notes generated for this track")
 
 class Song(BaseModel):

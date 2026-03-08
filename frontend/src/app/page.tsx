@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Chat from "@/components/Chat";
 import PianoRoll from "@/components/PianoRoll";
+import TransportTime from "@/components/TransportTime";
 import { Song } from "@/lib/types";
 import { engine } from "@/lib/audio";
 import { Play, Square, Save, FolderOpen } from "lucide-react";
@@ -142,6 +143,8 @@ export default function Home() {
           </div>
 
           <div className="flex gap-10">
+            <TransportTime isPlaying={isPlaying} />
+            
             <div className="flex flex-col items-center">
               <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-1">Tempo</span>
               <div className="text-2xl font-light tabular-nums border border-zinc-800 bg-zinc-950/50 px-4 py-1.5 rounded-xl shadow-inner text-indigo-300">

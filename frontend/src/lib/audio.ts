@@ -12,69 +12,61 @@ type ToneSynthInstance =
 type AnySynth = Soundfont | ToneSynthInstance;
 
 /**
- * Maps a descriptive instrument name (from engine="tone" tracks) to a configured
+ * Maps an explicit plugin class and instrument preset to a configured
  * Tone.js synthesizer connected to the given channel.
  */
-function createToneSynth(instrument: string, channel: Tone.Channel): ToneSynthInstance {
-    const name = instrument.toLowerCase();
+function createToneSynth(plugin: string, preset: string, channel: Tone.Channel): ToneSynthInstance {
+    const name = preset.toLowerCase();
 
-    // 808 / bass drum / kick
-    if (name.includes('kick') || name.includes('808') || name.includes('bass_drum')) {
-        return new Tone.MembraneSynth({
-            pitchDecay: 0.08,
-            octaves: 6,
-            envelope: { attack: 0.001, decay: 0.35, sustain: 0, release: 0.15 },
-        }).connect(channel);
+    switch (plugin) {
+        case 'MembraneSynth':
+            return new Tone.MembraneSynth({
+                pitchDecay: 0.08,
+                octaves: name.includes('808') ? 6 : 4,
+                envelope: { attack: 0.001, decay: name.includes('808') ? 1.0 : 0.35, sustain: 0, release: 0.15 },
+            }).connect(channel);
+
+        case 'NoiseSynth':
+            return new Tone.NoiseSynth({
+                noise: { type: 'white' },
+                envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 },
+            }).connect(channel);
+
+        case 'MetalSynth':
+            const metalSynth = new Tone.MetalSynth({
+                envelope: { attack: 0.001, decay: 0.1, release: 0.1 },
+                harmonicity: 5.1,
+                modulationIndex: 32,
+                resonance: 4000,
+                octaves: 1.5,
+            }).connect(channel);
+            metalSynth.frequency.value = 400;
+            return metalSynth;
+
+        case 'FMSynth':
+            return new Tone.PolySynth(Tone.FMSynth, {
+                harmonicity: 3,
+                modulationIndex: 10,
+                envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.8 },
+                modulation: { type: 'square' },
+                modulationEnvelope: { attack: 0.2, decay: 0.01, sustain: 1, release: 0.5 },
+            }).connect(channel);
+
+        case 'AMSynth':
+            return new Tone.PolySynth(Tone.AMSynth, {
+                harmonicity: 2,
+                envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 1.0 },
+                modulation: { type: 'sine' },
+                modulationEnvelope: { attack: 0.5, decay: 0, sustain: 1, release: 0.5 },
+            }).connect(channel);
+
+        case 'PolySynth':
+        default:
+            return new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: 'sawtooth' },
+                envelope: { attack: 0.005, decay: 0.1, sustain: 0.6, release: 0.4 },
+            }).connect(channel);
     }
-
-    // Snare / clap / rimshot
-    if (name.includes('snare') || name.includes('clap') || name.includes('rimshot')) {
-        return new Tone.NoiseSynth({
-            noise: { type: 'white' },
-            envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 },
-        }).connect(channel);
-    }
-
-    // Hi-hat / cymbal / metallic percussion
-    if (name.includes('hihat') || name.includes('hi_hat') || name.includes('cymbal') ||
-        name.includes('crash') || name.includes('ride')) {
-        const metalSynth = new Tone.MetalSynth({
-            envelope: { attack: 0.001, decay: 0.1, release: 0.1 },
-            harmonicity: 5.1,
-            modulationIndex: 32,
-            resonance: 4000,
-            octaves: 1.5,
-        }).connect(channel);
-        metalSynth.frequency.value = 400;
-        return metalSynth;
-    }
-
-    // FM bass / acid bass
-    if (name.includes('fm') || name.includes('acid')) {
-        return new Tone.PolySynth(Tone.FMSynth, {
-            harmonicity: 3,
-            modulationIndex: 10,
-            envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.8 },
-            modulation: { type: 'square' },
-            modulationEnvelope: { attack: 0.2, decay: 0.01, sustain: 1, release: 0.5 },
-        }).connect(channel);
-    }
-
-    // Warm pad / AM synth
-    if (name.includes('pad') || name.includes('am_')) {
-        return new Tone.PolySynth(Tone.AMSynth, {
-            harmonicity: 2,
-            envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 1.0 },
-            modulation: { type: 'sine' },
-            modulationEnvelope: { attack: 0.5, decay: 0, sustain: 1, release: 0.5 },
-        }).connect(channel);
-    }
-
-    // Default: bass, lead, arp, synth — bright sawtooth PolySynth
-    return new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: 'sawtooth' },
-        envelope: { attack: 0.005, decay: 0.1, sustain: 0.6, release: 0.4 },
-    }).connect(channel);
 }
 
 /**
@@ -160,14 +152,17 @@ export class AudioEngine {
             // Acoustic drums that might incorrectly trigger electronic if 'drum' was in the array above
             const acousticKeywords = ['taiko_drum', 'synth_drum', 'woodblock', 'reverse_cymbal', 'melodic_tom', 'steel_drums'];
 
-            const instrumentLower = (track.instrument || '').toLowerCase();
+            const instrumentLower = (track.instrument.preset || '').toLowerCase();
             
             // Explicit engine setting takes precedence. 
             // If missing, look for acoustic exact matches, otherwise check electronic keywords.
             let useElectronic = false;
-            if (track.engine === 'tone') {
+            // Support legacy save files that might have `engine` at the top level
+            const trackEngine = track.instrument.engine || (track as any).engine;
+            
+            if (trackEngine === 'tone') {
                 useElectronic = true;
-            } else if (track.engine === 'smplr') {
+            } else if (trackEngine === 'smplr') {
                 useElectronic = false;
             } else if (acousticKeywords.some(kw => instrumentLower.includes(kw))) {
                 useElectronic = false;
@@ -176,39 +171,57 @@ export class AudioEngine {
             }
 
             if (useElectronic) {
-                console.log(`[AudioEngine] "${track.id}" → Tone.js (${track.instrument})`);
+                console.log(`[AudioEngine] "${track.id}" → Tone.js (${track.instrument.plugin}:${track.instrument.preset})`);
 
-                const synth = createToneSynth(track.instrument, channel);
+                const synth = createToneSynth(track.instrument.plugin, track.instrument.preset, channel);
                 this.synths[track.id] = synth;
 
-                const part = new Tone.Part((time, value) => {
-                    const durationSecs = Tone.Time(value.duration).toSeconds();
-                    triggerToneNote(synth, value.note, durationSecs, time, value.velocity);
-                }, track.notes.map(n => ({
+                const isMonoSynth = synth instanceof Tone.MembraneSynth || 
+                                    synth instanceof Tone.MetalSynth || 
+                                    synth instanceof Tone.NoiseSynth;
+
+                let mappedEvents = track.notes.map(n => ({
                     time: n.start_time,
                     note: n.pitch,
                     duration: n.duration,
                     velocity: n.velocity,
-                }))).start(0);
+                }));
+
+                // Prevent Tone.js crash: Monophonic synths cannot schedule multiple notes at the exact same time
+                if (isMonoSynth) {
+                    const seenTimes = new Set<string>();
+                    mappedEvents = mappedEvents.filter(e => {
+                        if (seenTimes.has(e.time)) return false;
+                        seenTimes.add(e.time);
+                        return true;
+                    });
+                }
+
+                const part = new Tone.Part((time, value) => {
+                    const durationSecs = Tone.Time(value.duration).toSeconds();
+                    triggerToneNote(synth, value.note, durationSecs, time, value.velocity);
+                }, mappedEvents).start(0);
 
                 this.parts.push(part);
 
             } else {
-                console.log(`[AudioEngine] "${track.id}" → smplr (${track.instrument})`);
+                console.log(`[AudioEngine] "${track.id}" → smplr (${track.instrument.plugin}:${track.instrument.preset})`);
 
                 const rawContext = Tone.getContext().rawContext as AudioContext;
                 const nativeGain = rawContext.createGain();
                 Tone.connect(nativeGain as any, channel);
 
-                let synth: Soundfont;
+                let synth: any; // Soundfont | DrumMachine | SplendidGrandPiano
+                const SmplrPluginClass = (window as any).smplr?.[track.instrument.plugin] || Soundfont;
+
                 try {
-                    synth = new Soundfont(rawContext, {
-                        instrument: track.instrument as any,
+                    synth = new SmplrPluginClass(rawContext, {
+                        instrument: track.instrument.preset as any,
                         destination: nativeGain,
                     });
                     await synth.load;
                 } catch (error) {
-                    console.warn(`Failed to load "${track.instrument}", falling back to acoustic_grand_piano.`, error);
+                    console.warn(`Failed to load smplr plugin "${track.instrument.plugin}" with preset "${track.instrument.preset}", falling back to Soundfont acoustic_grand_piano.`, error);
                     synth = new Soundfont(rawContext, {
                         instrument: 'acoustic_grand_piano' as any,
                         destination: nativeGain,

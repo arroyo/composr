@@ -19,7 +19,7 @@ async def print_tracks(genre: str, prompt: str):
         return
         
     for idx, track in enumerate(song.tracks):
-        print(f"Track {idx + 1}: Engine={track.engine}, Instrument={track.instrument} | Name={track.id}")
+        print(f"Track {idx + 1}: Engine={track.instrument.engine}, Bank={track.instrument.bank}, Preset={track.instrument.preset} | Name={track.id}")
 
 async def main():
     await print_tracks("Techno", "Create a basic techno loop with a kick, hihat, and a bassline")
