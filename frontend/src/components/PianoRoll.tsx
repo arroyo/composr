@@ -3,16 +3,19 @@
 import { useState, useEffect } from "react";
 import { Song } from "@/lib/types";
 import { engine } from "@/lib/audio";
+import { MoreHorizontal, Trash2 } from "lucide-react";
 
 interface PianoRollProps {
     song: Song | null;
     audioInitialized: boolean;
+    onUpdateSong: (song: Song) => void;
     onEnsureAudioInit: () => Promise<void>;
 }
 
-export default function PianoRoll({ song, audioInitialized, onEnsureAudioInit }: PianoRollProps) {
+export default function PianoRoll({ song, audioInitialized, onUpdateSong, onEnsureAudioInit }: PianoRollProps) {
     const [mutedTracks, setMutedTracks] = useState<Set<string>>(new Set());
     const [soloTracks, setSoloTracks] = useState<Set<string>>(new Set());
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
     // Sync with engine preferences when song changes
     useEffect(() => {
@@ -83,6 +86,41 @@ export default function PianoRoll({ song, audioInitialized, onEnsureAudioInit }:
                                             <div className="text-zinc-400 mb-1"><span className="text-zinc-500">Bank:</span> {track.instrument.bank}</div>
                                             <div className="text-indigo-300"><span className="text-zinc-500">Preset:</span> {track.instrument.preset}</div>
                                         </div>
+                                    )}
+                                </div>
+
+                                <div className="relative">
+                                    <button 
+                                        onClick={() => setOpenMenuId(openMenuId === track.id ? null : track.id)}
+                                        className="p-1 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors ml-1"
+                                    >
+                                        <MoreHorizontal className="w-4 h-4" />
+                                    </button>
+                                    
+                                    {openMenuId === track.id && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-40"
+                                                onClick={() => setOpenMenuId(null)}
+                                            />
+                                            <div className="absolute left-0 top-full mt-1 z-50 w-36 bg-zinc-900 border border-zinc-700/50 rounded-lg shadow-xl py-1 overflow-hidden">
+                                                <button 
+                                                    onClick={() => {
+                                                        if (window.confirm(`Are you sure you want to delete track "${track.id}"?`)) {
+                                                            onUpdateSong({
+                                                                ...song,
+                                                                tracks: song.tracks.filter(t => t.id !== track.id)
+                                                            });
+                                                        }
+                                                        setOpenMenuId(null);
+                                                    }}
+                                                    className="w-full text-left px-3 py-2 text-sm text-rose-500 hover:bg-zinc-800 flex items-center gap-2 transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                    Delete Track
+                                                </button>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             </div>

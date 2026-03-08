@@ -213,7 +213,7 @@ export default function Home() {
 
         <div className="flex-1 relative z-10 overflow-hidden flex">
           {viewMode === "arrangement" ? (
-            <PianoRoll song={song} audioInitialized={audioInitialized} onEnsureAudioInit={async () => {
+            <PianoRoll song={song} audioInitialized={audioInitialized} onUpdateSong={handleUpdateSong} onEnsureAudioInit={async () => {
               if (!audioInitialized) {
                 await engine.init();
                 setAudioInitialized(true);
