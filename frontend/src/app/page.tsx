@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Chat from "@/components/Chat";
 import PianoRoll from "@/components/PianoRoll";
 import { Song } from "@/lib/types";
@@ -11,6 +11,10 @@ export default function Home() {
   const [song, setSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
+
+  useEffect(() => {
+    engine.onPlaybackStop = () => setIsPlaying(false);
+  }, []);
 
   const handleUpdateSong = async (newSong: Song) => {
     setSong(newSong);

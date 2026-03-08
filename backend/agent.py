@@ -57,7 +57,18 @@ def clear_song() -> str:
     current_song = Song()
     return "Song has been cleared."
 
-tools = [create_track, add_notes, change_tempo, clear_song]
+@tool
+def update_track_instrument(track_id: str, new_instrument: str) -> str:
+    """Changes the synthesizer instrument of an existing track, preserving its notes."""
+    global current_song
+    track = current_song.get_track(track_id)
+    if not track:
+        return f"Error: Track '{track_id}' does not exist."
+    
+    track.instrument = new_instrument
+    return f"Updated track '{track_id}' to use instrument {new_instrument}."
+
+tools = [create_track, add_notes, change_tempo, clear_song, update_track_instrument]
 tool_node = ToolNode(tools)
 
 from dotenv import load_dotenv
@@ -70,11 +81,21 @@ llm_with_tools = llm.bind_tools(tools)
 system_prompt = """You are an AI Music Producer. Your job is to compose symbolic music. 
 You will receive requests from the user to construct a song arrangement.
 
+CRITICAL BEHAVIORAL RULE:
+Unless the user explicitly asks you to start a new song, or explicitly asks you to restart, assume they want you to add to the existing background arrangement. DO NOT use `clear_song` when processing a follow-up request. Add new tracks, or modify existing tracks. 
+
+GENRE-APPROPRIATE INSTRUMENTS:
+Use synths that are appropriate for the requested genre:
+- Country: use acoustic instruments (e.g., acoustic guitar, fiddle, upright bass).
+- Rock: use electric guitars, electric bass, and drums.
+- Electronic / Hip Hop / EDM: use synthesizers (e.g., synth bass, synth leads, drum machines), NOT acoustic instruments.
+
 You have access to tools that modify the current song state:
 - create_track: Creates a new instrument track. You must provide a valid General MIDI instrument name (e.g., 'acoustic_grand_piano', 'acoustic_guitar_steel', 'electric_bass_finger', 'synth_drum', 'violin', etc). Choose an instrument that fits the requested genre.
+- update_track_instrument: Changes the synthesizer instrument of an existing track, preserving all its notes. Use this if the user asks for a different sound on an existing track.
 - add_notes: Adds a list of `Note` objects to a track. Notes use Tone.js scheduling notation (e.g. C4 pitch, '0:0:0' starts at bar 0, beat 0, sixteenth 0).
 - change_tempo: Sets the BPM.
-- clear_song: Deletes everything.
+- clear_song: Deletes everything. DO NOT call this unless the user says "clear the song", "delete everything", or "start a new song".
 
 When writing notes, you must accurately calculate the Tone.js `start_time` values ('bars:beats:sixths').
 A 4/4 measure has 4 beats, and each beat contains four 16th notes.
