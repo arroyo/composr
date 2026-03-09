@@ -183,19 +183,58 @@ export class AudioEngine {
                                     synth instanceof Tone.NoiseSynth;
 
                 let mappedEvents = track.notes.map(n => ({
-                    time: n.start_time,
+                    time: Tone.Time(n.start_time).toSeconds(),
                     note: n.pitch,
                     duration: n.duration,
                     velocity: n.velocity,
                 }));
 
+                // Prevent Tone.js crash: sort events chronologically
+                mappedEvents.sort((a, b) => a.time - b.time);
+
+                // Prevent Tone.js crash: Part requires STRICTLY increasing time values.
+                // If a time is <= the previous time, we bump it by a microscopic offset.
+                let lastTime = -1;
+                mappedEvents = mappedEvents.map(e => {
+                    let t = e.time;
+                    if (t <= lastTime) {
+                        t = lastTime + 0.0001;
+                    }
+                    lastTime = t;
+                    return { ...e, time: t };
+                });
+
                 // Prevent Tone.js crash: Monophonic synths cannot schedule multiple notes at the exact same time
+                // By this point, times are strictly increasing, but functionally identical in the UI.
+                // The Tone.js engine doesn't inherently crash on polyphonic synths with strict increasing times.
+                // For monophonic synths, playing two notes 0.0001s apart might still sound bad or clip envelopes,
+                // but it shouldn't outright crash `Tone.Part` anymore because of the `time` check.
+                // However, we still want to filter out audible duplicates for mono synths.
                 if (isMonoSynth) {
-                    const seenTimes = new Set<string>();
-                    mappedEvents = mappedEvents.filter(e => {
-                        if (seenTimes.has(e.time)) return false;
-                        seenTimes.add(e.time);
+                    const seenOriginalTimes = new Set<string>();
+                    // We need to iterate the ORIGINAL track.notes to filter logically duplicate timestamps (e.g., two kicks at 0:0:0)
+                    // Then rebuild the mappedEvents. 
+                    const filteredNotes = track.notes.filter(n => {
+                        if (seenOriginalTimes.has(n.start_time)) return false;
+                        seenOriginalTimes.add(n.start_time);
                         return true;
+                    });
+                    
+                    mappedEvents = filteredNotes.map(n => ({
+                        time: Tone.Time(n.start_time).toSeconds(),
+                        note: n.pitch,
+                        duration: n.duration,
+                        velocity: n.velocity,
+                    }));
+                    mappedEvents.sort((a, b) => a.time - b.time);
+                    let localLastTime = -1;
+                    mappedEvents = mappedEvents.map(e => {
+                        let t = e.time;
+                        if (t <= localLastTime) {
+                            t = localLastTime + 0.0001;
+                        }
+                        localLastTime = t;
+                        return { ...e, time: t };
                     });
                 }
 
@@ -245,6 +284,27 @@ export class AudioEngine {
 
                 this.synths[track.id] = synth;
 
+                let mappedEvents = track.notes.map(n => ({
+                    time: Tone.Time(n.start_time).toSeconds(),
+                    note: n.pitch,
+                    duration: n.duration,
+                    velocity: n.velocity,
+                }));
+
+                // Prevent Tone.js crash: sort events chronologically
+                mappedEvents.sort((a, b) => a.time - b.time);
+
+                // Prevent Tone.js crash: Part requires STRICTLY increasing time values.
+                let lastTime = -1;
+                mappedEvents = mappedEvents.map(e => {
+                    let t = e.time;
+                    if (t <= lastTime) {
+                        t = lastTime + 0.0001;
+                    }
+                    lastTime = t;
+                    return { ...e, time: t };
+                });
+
                 const part = new Tone.Part((time, value) => {
                     const currentSynth = this.synths[track.id];
                     if (!currentSynth) return;
@@ -260,12 +320,7 @@ export class AudioEngine {
                             velocity: Math.floor(value.velocity * 127),
                         });
                     }
-                }, track.notes.map(n => ({
-                    time: n.start_time,
-                    note: n.pitch,
-                    duration: n.duration,
-                    velocity: n.velocity,
-                }))).start(0);
+                }, mappedEvents).start(0);
 
                 this.parts.push(part);
             }
