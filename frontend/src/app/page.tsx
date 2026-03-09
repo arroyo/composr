@@ -7,7 +7,7 @@ import Mixer from "@/components/Mixer";
 import TransportTime from "@/components/TransportTime";
 import { Song } from "@/lib/types";
 import { engine } from "@/lib/audio";
-import { Play, Square, Save, FolderOpen, Trash2 } from "lucide-react";
+import { Play, Square, Save, FolderOpen, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 
 export default function Home() {
   const [song, setSong] = useState<Song | null>(null);
@@ -264,8 +264,26 @@ export default function Home() {
             
             <div className="flex flex-col items-center">
               <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-1">Tempo</span>
-              <div className="text-2xl font-light tabular-nums border border-zinc-800 bg-zinc-950/50 px-4 py-1.5 rounded-xl shadow-inner text-indigo-300">
-                {song?.tempo || "--"}
+              <div className="flex items-center gap-1 border border-zinc-800 bg-zinc-950/50 pl-3 pr-1 py-1 rounded-xl shadow-inner text-indigo-300">
+                <div className="text-2xl font-light tabular-nums w-10 text-center">
+                  {song?.tempo || "--"}
+                </div>
+                <div className="flex flex-col">
+                  <button 
+                    disabled={!song || song.tempo >= 300}
+                    onClick={() => song && handleUpdateSong({ ...song, tempo: song.tempo + 1 })}
+                    className="p-0.5 rounded-md text-zinc-500 hover:text-indigo-400 disabled:opacity-30 disabled:hover:text-zinc-500 transition-colors"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    disabled={!song || song.tempo <= 40}
+                    onClick={() => song && handleUpdateSong({ ...song, tempo: song.tempo - 1 })}
+                    className="p-0.5 rounded-md text-zinc-500 hover:text-indigo-400 disabled:opacity-30 disabled:hover:text-zinc-500 transition-colors"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
 
