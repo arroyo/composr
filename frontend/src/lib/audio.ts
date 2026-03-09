@@ -407,6 +407,9 @@ export class AudioEngine {
 
         Object.values(this.channels).forEach(c => c.dispose());
         this.channels = {};
+
+        this.trackMutes = {};
+        this.trackSolos = {};
     }
 }
 

@@ -70,9 +70,10 @@ async def chat(request: ChatRequest):
 @app.post("/api/state", response_model=Song)
 async def map_state(song: Song):
     """Updates the internal song state with a user-provided JSON file."""
-    from agent import current_song
-    current_song = song
-    return current_song
+    import agent
+    agent.current_song = song
+    agent.chat_history.clear()
+    return agent.current_song
 
 if __name__ == "__main__":
     import uvicorn
