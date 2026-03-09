@@ -40,29 +40,39 @@ async def get_state():
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """Sends a user instruction to the AI Music Producer agent."""
-    from agent import current_song
+    from agent import current_song, chat_history
+    from langchain_core.messages import HumanMessage
     
-    # Invoke the LangGraph framework
-    inputs = {"messages": [HumanMessage(content=request.message)], "song": current_song}
+    # Append the next user message to memory
+    chat_history.append(HumanMessage(content=request.message))
+    
+    # Invoke the LangGraph framework using the whole chat history
+    inputs = {"messages": chat_history, "song": current_song}
     
     # We need to run the graph and get the final output.
     # The output structure is a dict containing 'messages' and 'song'
     result = agent_app.invoke(inputs)
+    
+    # Update local chat history with whatever the agent appended (tool calls, tool returns, AI messages)
+    # The result["messages"] contains the full dialogue up to the final AI response
+    from agent import chat_history as global_history
+    global_history.clear()
+    global_history.extend(result["messages"])
     
     # The last message is the agent's final text response
     final_message = result["messages"][-1].content
     
     return ChatResponse(
         response=final_message,
-        song_state=result["song"]
+        song_state=current_song
     )
 
 @app.post("/api/state", response_model=Song)
 async def map_state(song: Song):
     """Updates the internal song state with a user-provided JSON file."""
-    import agent
-    agent.current_song = song
-    return agent.current_song
+    from agent import current_song
+    current_song = song
+    return current_song
 
 if __name__ == "__main__":
     import uvicorn

@@ -16,6 +16,7 @@ class AgentState(TypedDict):
 
 # --- Global In-Memory Song State ---
 current_song = Song()
+chat_history: list[BaseMessage] = []
 
 # Load instruments dictionary
 INSTRUMENTS_FILE = os.path.join(os.path.dirname(__file__), "instruments.json")
@@ -119,7 +120,22 @@ def set_song_name(name: str) -> str:
     current_song.name = name
     return f"Song name updated to '{name}'."
 
-tools = [create_track, add_notes, change_tempo, clear_song, update_track_instrument, set_song_name]
+@tool
+def delete_track(track_id: str) -> str:
+    """Deletes an existing track and all of its notes from the arrangement.
+    
+    Only use this tool if the user explicitly asks you to delete or remove a track.
+    If the user has not confirmed yet, ask for confirmation first before calling this tool.
+    """
+    global current_song
+    track = current_song.get_track(track_id)
+    if not track:
+        return f"Error: Track '{track_id}' does not exist."
+        
+    current_song.tracks = [t for t in current_song.tracks if t.id != track_id]
+    return f"Track '{track_id}' has been permanently deleted."
+
+tools = [create_track, add_notes, change_tempo, clear_song, update_track_instrument, set_song_name, delete_track]
 tool_node = ToolNode(tools)
 
 from dotenv import load_dotenv
@@ -133,6 +149,7 @@ system_prompt_template = """You are an AI Music Producer. You compose symbolic m
 
 CRITICAL BEHAVIORAL RULE:
 Unless the user says "start over", "clear", or "new song", ADD to the existing arrangement. Never call clear_song on follow-up requests.
+If the user asks to delete a specific track, PLEASE ask for their confirmation first if they haven't explicitly said "yes, delete it" or "delete the bass track". Once confirmed, use the `delete_track` tool.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ENGINE SELECTION & SOUND DESIGN
@@ -188,8 +205,10 @@ def agent_node(state: AgentState):
         
     context_prompt = f"{system_prompt}\n\nCURRENT SONG STATE:\n{song_json}"
 
+    # Ensure the system prompt is injected safely.
+    # If the first message in memory is already a SystemMessage, replace it.
     if messages and isinstance(messages[0], SystemMessage):
-        messages = [SystemMessage(content=context_prompt)] + messages[1:]
+        messages[0] = SystemMessage(content=context_prompt)
     else:
         messages = [SystemMessage(content=context_prompt)] + messages
 
