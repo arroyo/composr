@@ -6,7 +6,7 @@ import { Song } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface ChatProps {
-    onUpdateSong: (song: Song) => void;
+    onUpdateSong: (song: Song, skipAudioReload?: boolean) => void;
 }
 
 interface Message {

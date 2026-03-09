@@ -37,10 +37,10 @@ export default function Home() {
     }
   }, []);
 
-  const handleUpdateSong = async (newSong: Song) => {
+  const handleUpdateSong = async (newSong: Song, skipAudioReload = false) => {
     setSong(newSong);
     localStorage.setItem("composr_song", JSON.stringify(newSong));
-    if (audioInitialized) {
+    if (audioInitialized && !skipAudioReload) {
       await engine.loadSong(newSong);
     }
   };

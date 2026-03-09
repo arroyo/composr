@@ -5,7 +5,7 @@ import { engine } from "@/lib/audio";
 
 interface MixerProps {
   song: Song | null;
-  onUpdateSong: (song: Song) => void;
+  onUpdateSong: (song: Song, skipAudioReload?: boolean) => void;
   audioInitialized: boolean;
 }
 
@@ -30,7 +30,7 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
   const handleVolumeChange = (trackIndex: number, newVolume: number) => {
     const updatedSong = { ...song };
     updatedSong.tracks[trackIndex].volume = newVolume;
-    onUpdateSong(updatedSong);
+    onUpdateSong(updatedSong, true);
     if (audioInitialized) {
       engine.setTrackVolume(updatedSong.tracks[trackIndex].id, newVolume);
     }
@@ -48,7 +48,7 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
 
     const updatedSong = { ...song };
     updatedSong.tracks[trackIndex].instrument = newInstrument;
-    onUpdateSong(updatedSong);
+    onUpdateSong(updatedSong, true);
 
     if (audioInitialized) {
       engine.setTrackInstrument(updatedSong.tracks[trackIndex].id, newInstrument);
@@ -58,7 +58,7 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
   const handlePanChange = (trackIndex: number, newPan: number) => {
     const updatedSong = { ...song };
     updatedSong.tracks[trackIndex].pan = newPan;
-    onUpdateSong(updatedSong);
+    onUpdateSong(updatedSong, true);
     if (audioInitialized) {
       engine.setTrackPan(updatedSong.tracks[trackIndex].id, newPan);
     }
@@ -70,13 +70,13 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
     // Force re-render locally by calling a dummy state or relying on parent
     // Next.js fast refresh or a local toggle tracker.
     // For simplicity, we just trigger a song update to re-render.
-    onUpdateSong({ ...song });
+    onUpdateSong({ ...song }, true);
   };
 
   const toggleSolo = (track: Track) => {
     const currentSolo = engine.trackSolos[track.id] || false;
     engine.setTrackSolo(track.id, !currentSolo);
-    onUpdateSong({ ...song });
+    onUpdateSong({ ...song }, true);
   };
 
   return (
@@ -144,7 +144,7 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
                   // Debounce the state update if performance suffers, but for now we lift it up
                   const updatedSong = { ...song };
                   updatedSong.tracks[i].volume = parseFloat(e.target.value);
-                  onUpdateSong(updatedSong);
+                  onUpdateSong(updatedSong, true);
                 }}
                 // We use writing-mode or CSS rotation for vertical sliders
                 style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}

@@ -8,7 +8,7 @@ import { MoreHorizontal, Trash2 } from "lucide-react";
 interface PianoRollProps {
     song: Song | null;
     audioInitialized: boolean;
-    onUpdateSong: (song: Song) => void;
+    onUpdateSong: (song: Song, skipAudioReload?: boolean) => void;
     onEnsureAudioInit: () => Promise<void>;
 }
 

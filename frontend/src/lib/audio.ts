@@ -69,6 +69,8 @@ function createToneSynth(plugin: string, preset: string, channel: Tone.Channel):
     }
 }
 
+const lastTriggerTimes = new WeakMap<ToneSynthInstance, number>();
+
 /**
  * Trigger a note on any Tone.js synth, handling mono vs poly vs noise correctly.
  */
@@ -79,12 +81,25 @@ function triggerToneNote(
     time: number,
     velocity: number
 ) {
-    if (synth instanceof Tone.NoiseSynth) {
-        synth.triggerAttackRelease(durationSecs, time, velocity);
-    } else if (synth instanceof Tone.MembraneSynth || synth instanceof Tone.MetalSynth) {
-        synth.triggerAttackRelease(pitch, durationSecs, time, velocity);
-    } else {
-        (synth as Tone.PolySynth).triggerAttackRelease(pitch, durationSecs, time, velocity);
+    if (synth instanceof Tone.MembraneSynth || synth instanceof Tone.MetalSynth || synth instanceof Tone.NoiseSynth) {
+        const lastTime = lastTriggerTimes.get(synth) || -1;
+        // Require at least 5ms between notes on a mono synth to prevent curve overlap crashes
+        if (time <= lastTime + 0.005) {
+            return;
+        }
+        lastTriggerTimes.set(synth, time);
+    }
+
+    try {
+        if (synth instanceof Tone.NoiseSynth) {
+            synth.triggerAttackRelease(durationSecs, time, velocity);
+        } else if (synth instanceof Tone.MembraneSynth || synth instanceof Tone.MetalSynth) {
+            synth.triggerAttackRelease(pitch, durationSecs, time, velocity);
+        } else {
+            (synth as Tone.PolySynth).triggerAttackRelease(pitch, durationSecs, time, velocity);
+        }
+    } catch (e) {
+        console.warn("[AudioEngine] Ignored Tone.js scheduling overlap:", e);
     }
 }
 
