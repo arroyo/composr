@@ -1,13 +1,16 @@
 import os
 import asyncio
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage
 
 from schema import Song
 from agent import app as agent_app
+from midi_utils import song_to_midi, midi_to_song
+from utils import generate_filename
 
 # Load environment variables (OPENAI_API_KEY)
 load_dotenv()
@@ -23,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-AGENT_TIMEOUT_SECONDS = 60
+AGENT_TIMEOUT_SECONDS = 90
 
 class ChatRequest(BaseModel):
     message: str
@@ -94,6 +97,50 @@ async def map_state(song: Song):
     agent.current_song = song
     agent.chat_history.clear()
     return agent.current_song
+
+@app.get("/api/export/midi")
+async def export_midi():
+    """Export the current song as a MIDI file."""
+    from agent import current_song
+    
+    if not current_song or not current_song.tracks:
+        raise HTTPException(status_code=400, detail="No song to export")
+    
+    try:
+        midi_data = song_to_midi(current_song)
+        
+        # Generate filename using the shared utility function
+        filename = generate_filename(current_song.name, "mid")
+        
+        return Response(
+            content=midi_data,
+            media_type="audio/midi",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export MIDI: {str(e)}")
+
+@app.post("/api/import/midi", response_model=Song)
+async def import_midi(file: UploadFile = File(...)):
+    """Import a MIDI file and convert to song format."""
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No MIDI file provided")
+    
+    if not (file.filename.endswith('.mid') or file.filename.endswith('.midi')):
+        raise HTTPException(status_code=400, detail="File must be a MIDI file (.mid or .midi)")
+    
+    try:
+        midi_data = await file.read()
+        song = midi_to_song(midi_data)
+        
+        # Update the current song state
+        import agent
+        agent.current_song = song
+        agent.chat_history.clear()
+        
+        return song
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to import MIDI: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

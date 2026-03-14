@@ -7,7 +7,8 @@ import Mixer from "@/components/Mixer";
 import TransportTime from "@/components/TransportTime";
 import { Song } from "@/lib/types";
 import { engine } from "@/lib/audio";
-import { Play, Square, Save, FolderOpen, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { generateFilename } from "@/lib/utils";
+import { Play, Square, Save, FolderOpen, Trash2, ChevronUp, ChevronDown, Music } from "lucide-react";
 
 export default function Home() {
   const [song, setSong] = useState<Song | null>(null);
@@ -121,12 +122,7 @@ export default function Home() {
       return;
     }
     try {
-      let filename = "song.json";
-      if (song.name) {
-        let safeName = song.name.replace(/ /g, '-').slice(0, 35);
-        safeName = safeName.replace(/[^a-zA-Z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
-        if (safeName) filename = `${safeName}.json`;
-      }
+      const filename = generateFilename(song.name || "", "json");
 
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(song, null, 2));
       const downloadAnchorNode = document.createElement("a");
@@ -141,26 +137,81 @@ export default function Home() {
     }
   };
 
+  const handleExportMidi = async () => {
+    if (!song) {
+      alert("No song to export!");
+      return;
+    }
+    
+    try {
+      const response = await fetch("http://localhost:8000/api/export/midi");
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Failed to export MIDI: ${error.detail}`);
+        return;
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      
+      // Generate filename using the same utility as JSON save
+      const filename = generateFilename(song.name || "", "mid");
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to export MIDI file");
+    }
+  };
+
   const handleLoad = () => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".json";
+    input.accept = ".json,.mid,.midi";
     input.onchange = async (e: Event) => {
       const target = e.target as HTMLInputElement;
       const file = target.files?.[0];
       if (!file) return;
 
       try {
-        const text = await file.text();
-        const parsedSong = JSON.parse(text) as Song;
-        await handleUpdateSong(parsedSong);
+        if (file.name.endsWith('.mid') || file.name.endsWith('.midi')) {
+          // Handle MIDI file import
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          const response = await fetch("http://localhost:8000/api/import/midi", {
+            method: "POST",
+            body: formData,
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            alert(`Failed to import MIDI: ${error.detail}`);
+            return;
+          }
+          
+          const parsedSong = await response.json() as Song;
+          await handleUpdateSong(parsedSong);
+        } else {
+          // Handle JSON file import
+          const text = await file.text();
+          const parsedSong = JSON.parse(text) as Song;
+          await handleUpdateSong(parsedSong);
 
-        // Sync back up with the backend so the AI agent knows the new state
-        await fetch("http://localhost:8000/api/state", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: text,
-        });
+          // Sync back up with the backend so the AI agent knows the new state
+          await fetch("http://localhost:8000/api/state", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: text,
+          });
+        }
 
       } catch (err) {
         console.error(err);
@@ -248,6 +299,10 @@ export default function Home() {
             <button onClick={handleSave} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-indigo-400 transition-colors">
               <Save className="w-5 h-5" />
               <span className="text-[10px] uppercase font-bold tracking-wider">Save</span>
+            </button>
+            <button onClick={handleExportMidi} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-indigo-400 transition-colors">
+              <Music className="w-5 h-5" />
+              <span className="text-[10px] uppercase font-bold tracking-wider">MIDI</span>
             </button>
             <button onClick={handleLoad} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-indigo-400 transition-colors">
               <FolderOpen className="w-5 h-5" />
