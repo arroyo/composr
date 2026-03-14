@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Chat from "@/components/Chat";
 import PianoRoll from "@/components/PianoRoll";
+import PianoRollView from "@/components/PianoRollView";
 import Mixer from "@/components/Mixer";
 import TransportTime from "@/components/TransportTime";
 import { Song } from "@/lib/types";
@@ -14,7 +15,7 @@ export default function Home() {
   const [song, setSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
-  const [viewMode, setViewMode] = useState<"arrangement" | "mixer">("arrangement");
+  const [viewMode, setViewMode] = useState<"arrangement" | "mixer" | "piano_roll">("arrangement");
 
   useEffect(() => {
     engine.onPlaybackStop = () => setIsPlaying(false);
@@ -245,6 +246,13 @@ export default function Home() {
                 </button>
                 <span className="text-zinc-800">/</span>
                 <button 
+                  onClick={() => setViewMode('piano_roll')} 
+                  className={`transition-colors ${viewMode === 'piano_roll' ? 'text-zinc-100' : 'text-zinc-600 hover:text-zinc-400'}`}
+                >
+                  Piano Roll
+                </button>
+                <span className="text-zinc-800">/</span>
+                <button 
                   onClick={() => setViewMode('mixer')} 
                   className={`transition-colors ${viewMode === 'mixer' ? 'text-zinc-100' : 'text-zinc-600 hover:text-zinc-400'}`}
                 >
@@ -265,6 +273,14 @@ export default function Home() {
         <div className="flex-1 relative z-10 overflow-hidden flex">
           {viewMode === "arrangement" ? (
             <PianoRoll song={song} audioInitialized={audioInitialized} onUpdateSong={handleUpdateSong} onEnsureAudioInit={async () => {
+              if (!audioInitialized) {
+                await engine.init();
+                setAudioInitialized(true);
+                if (song) await engine.loadSong(song);
+              }
+            }} />
+          ) : viewMode === "piano_roll" ? (
+            <PianoRollView song={song} audioInitialized={audioInitialized} onUpdateSong={handleUpdateSong} onEnsureAudioInit={async () => {
               if (!audioInitialized) {
                 await engine.init();
                 setAudioInitialized(true);
