@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Music, ChevronDown } from "lucide-react";
+import { Send, Loader2, Music, ChevronDown, Maximize2, Minimize2 } from "lucide-react";
 import { Song, AVAILABLE_MODELS, Model } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -22,8 +22,12 @@ export default function Chat({ onUpdateSong }: ChatProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [selectedModel, setSelectedModel] = useState<Model>(AVAILABLE_MODELS[0]); // Default to GPT 4o
     const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [textareaHeight, setTextareaHeight] = useState("auto");
     const bottomRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const isDragging = useRef(false);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,6 +43,55 @@ export default function Chat({ onUpdateSong }: ChatProps) {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Auto-resize textarea based on content
+    useEffect(() => {
+        if (textareaRef.current) {
+            if (isExpanded) {
+                textareaRef.current.style.height = '200px';
+            } else {
+                textareaRef.current.style.height = 'auto';
+                const scrollHeight = textareaRef.current.scrollHeight;
+                textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
+            }
+        }
+    }, [input, isExpanded]);
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        isDragging.current = true;
+        e.preventDefault();
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDragging.current || !textareaRef.current) return;
+            
+            const rect = textareaRef.current.getBoundingClientRect();
+            const newHeight = e.clientY - rect.top;
+            if (newHeight >= 60 && newHeight <= 400) {
+                textareaRef.current.style.height = `${newHeight}px`;
+                setTextareaHeight(`${newHeight}px`);
+            }
+        };
+
+        const handleMouseUp = () => {
+            isDragging.current = false;
+        };
+
+        if (isDragging.current) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging.current]);
+
+    const toggleExpanded = () => {
+        setIsExpanded(!isExpanded);
+    };
 
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
@@ -178,21 +231,46 @@ export default function Chat({ onUpdateSong }: ChatProps) {
             </div>
 
             <div className="p-4 border-t border-zinc-800/50">
-                <div className="relative flex items-center">
-                    <input
-                        type="text"
+                <div className="relative">
+                    <textarea
+                        ref={textareaRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                        placeholder="e.g. Write a C minor chord progression"
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-4 pr-12 py-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSend();
+                            }
+                        }}
+                        placeholder="e.g. Write a C minor chord progression (Shift+Enter for new line)"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-4 pr-12 py-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all resize-none overflow-y-auto"
+                        style={{ height: isExpanded ? '200px' : 'auto', minHeight: '44px', maxHeight: '400px' }}
+                        rows={1}
                     />
+                    
+                    {/* Resize handle */}
+                    <div
+                        className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-zinc-600 hover:bg-zinc-500 cursor-ns-resize rounded-full transition-colors"
+                        onMouseDown={handleMouseDown}
+                        style={{ marginBottom: '-4px' }}
+                    />
+                    
+                    {/* Send button */}
                     <button
                         onClick={handleSend}
                         disabled={!input.trim() || isLoading}
-                        className="absolute right-2 p-1.5 rounded-lg text-zinc-400 hover:text-indigo-400 hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+                        className="absolute bottom-3 right-2 p-1.5 rounded-lg text-zinc-400 hover:text-indigo-400 hover:bg-zinc-800 disabled:opacity-50 transition-colors"
                     >
                         <Send className="w-4 h-4" />
+                    </button>
+                    
+                    {/* Expand/Collapse button */}
+                    <button
+                        onClick={toggleExpanded}
+                        className="absolute bottom-3 right-10 p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                        title={isExpanded ? "Collapse input" : "Expand input"}
+                    >
+                        {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                     </button>
                 </div>
             </div>

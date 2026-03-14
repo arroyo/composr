@@ -22,6 +22,8 @@ create a house song 12 measures long. It should have a cool beat and a lead synt
 
 Create a romantic song for a string quartet. The lead violin should sing and have a pretty melody. Make it 10 measures long.
 
+Create a song for a string quartet. The lead violin should have a melodic lyrical nature. Add all four parts, incorporating a pretty arrangement that has 3 changes. lead violin should be double time compared to violin 2. Make it 12 measures long.
+
 Create a song for a string quartet. The lead violin should have a melodic lyrical nature. Add all four parts, incorporating a pretty arrangement that has 3 changes. Make it 12 measures long.
 
 Create a country song that is 10 measures long. Feature a harmonica for the lead. It acts as a stand in for vocals.
