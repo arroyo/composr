@@ -4,6 +4,8 @@ import io
 import math
 from typing import List
 import mido
+import json
+import os
 
 def song_to_midi(song: Song) -> bytes:
     """
@@ -15,6 +17,9 @@ def song_to_midi(song: Song) -> bytes:
     Returns:
         MIDI file as bytes
     """
+    # Load General MIDI instruments for mapping
+    gm_instruments = load_general_midi_instruments()
+    
     # Create MIDIFile with 1 track per instrument track + 1 for tempo/time signature
     # MIDIFile uses 960 ticks per quarter note by default
     total_tracks = len(song.tracks) + (1 if song.tracks else 0)
@@ -32,6 +37,11 @@ def song_to_midi(song: Song) -> bytes:
         # Add tempo and time signature to each track for consistency
         midi.addTempo(track_num, 0, song.tempo)
         midi.addTimeSignature(track_num, 0, song.time_signature[0], song.time_signature[1], 24)
+        
+        # Map track to General MIDI instrument and set the program
+        gm_program = map_track_to_general_midi(track, gm_instruments)
+        # Convert from 1-128 to 0-127 for MIDI program change
+        midi.addProgramChange(track_num, 0, 0, gm_program - 1)
         
         for note in track.notes:
             # Convert note pitch to MIDI note number
@@ -311,3 +321,143 @@ def ticks_to_duration(ticks: int, time_signature: tuple[int, int], tempo: int) -
         return "16n"
     else:
         return "32n"
+
+def load_general_midi_instruments() -> dict:
+    """Load General MIDI instruments from shared folder."""
+    gm_file = os.path.join(os.path.dirname(__file__), "..", "shared", "general_midi_instruments.json")
+    try:
+        with open(gm_file, 'r') as f:
+            data = json.load(f)
+            # Create a mapping of instrument name to program number
+            instrument_map = {}
+            for instrument in data['instruments']:
+                instrument_map[instrument['name'].lower()] = instrument['program']
+            return instrument_map
+    except (FileNotFoundError, json.JSONDecodeError):
+        # Return a basic fallback mapping
+        return {
+            'acoustic grand piano': 1,
+            'electric piano': 5,
+            'acoustic guitar': 26,
+            'electric guitar': 28,
+            'acoustic bass': 33,
+            'electric bass': 34,
+            'violin': 41,
+            'cello': 43,
+            'trumpet': 57,
+            'sax': 66,
+            'flute': 74,
+            'drums': 117
+        }
+
+def map_track_to_general_midi(track: Track, gm_instruments: dict) -> int:
+    """
+    Map a track to its closest General MIDI instrument based on track name and instrument preset.
+    
+    Args:
+        track: The Track object to map
+        gm_instruments: Dictionary of General MIDI instrument names to program numbers
+        
+    Returns:
+        General MIDI program number (1-128)
+    """
+    # Default to Acoustic Grand Piano
+    default_program = 1
+    
+    # Get track name and instrument preset for matching
+    track_name = track.id.lower() if track.id else ""
+    instrument_preset = track.instrument.preset.lower() if track.instrument.preset else ""
+    
+    # Create a list of possible search terms
+    search_terms = [track_name, instrument_preset]
+    
+    # Define keyword mappings to General MIDI categories
+    keyword_mappings = {
+        # Piano keywords
+        'piano': [1, 2, 3, 4, 5, 6, 7, 8],
+        'acoustic_grand_piano': [1],
+        'electric_piano': [5, 6],
+        'harpsichord': [7],
+        
+        # Guitar keywords
+        'guitar': [25, 26, 27, 28, 29, 30, 31, 32],
+        'acoustic_guitar': [25, 26],
+        'electric_guitar': [27, 28, 29, 30, 31],
+        
+        # Bass keywords
+        'bass': [33, 34, 35, 36, 37, 38, 39, 40],
+        'acoustic_bass': [33],
+        'electric_bass': [34, 35],
+        'synth_bass': [39, 40],
+        
+        # Drum/Percussion keywords
+        'drum': [117, 118, 119],
+        'kick': [117],
+        'snare': [117],
+        'hihat': [117],
+        'cymbal': [117],
+        'percussion': [113, 114, 115, 116, 117, 118, 119, 120],
+        
+        # String keywords
+        'violin': [41],
+        'viola': [42],
+        'cello': [43],
+        'contrabass': [44],
+        'harp': [47],
+        'string': [41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52],
+        
+        # Brass keywords
+        'trumpet': [57],
+        'trombone': [58],
+        'tuba': [59],
+        'horn': [61],
+        'brass': [57, 58, 59, 60, 61, 62, 63, 64],
+        
+        # Woodwind keywords
+        'sax': [65, 66, 67, 68],
+        'soprano_sax': [65],
+        'alto_sax': [66],
+        'tenor_sax': [67],
+        'oboe': [69],
+        'clarinet': [72],
+        'flute': [74],
+        
+        # Synth keywords
+        'synth': [39, 40, 51, 52, 55, 63, 64, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 119],
+        'lead': [81, 82, 83, 84, 85, 86, 87, 88],
+        'pad': [89, 90, 91, 92, 93, 94, 95, 96],
+        
+        # Organ keywords
+        'organ': [17, 18, 19, 20, 21],
+        'church_organ': [20],
+        
+        # Ethnic keywords
+        'sitar': [105],
+        'banjo': [106],
+        'steel_drums': [115],
+        
+        # Other common terms
+        'lead_synth': [81, 82, 83, 84, 85, 86, 87, 88],
+        'pad_synth': [89, 90, 91, 92, 93, 94, 95, 96],
+        'bass_synth': [39, 40],
+        'fm_bass': [39, 40],
+    }
+    
+    # Try to find exact matches in General MIDI instrument names first
+    for term in search_terms:
+        if term in gm_instruments:
+            return gm_instruments[term]
+    
+    # Try keyword matching
+    for term in search_terms:
+        for keyword, programs in keyword_mappings.items():
+            if keyword in term:
+                return programs[0]  # Return the first (most common) program for this category
+    
+    # Try partial matching with General MIDI instrument names
+    for term in search_terms:
+        for gm_name, program in gm_instruments.items():
+            if term in gm_name or gm_name in term:
+                return program
+    
+    return default_program
