@@ -1,9 +1,13 @@
 # Notes
 
-## Prompts
+## Music Prompts
+create a hip hop beat in the style of dr dre. 8 measures long.
+
 Create an 8-measure chill hip hop beat with a funky bass line and a catchy melody.
 
-create a hip hop beat in the style of dr dre. 6 measures long and tempo should be between 100-110.
+Create a bluegrass song in G Major. Song should be 12 measures long. Use the chords F (I), Gm (ii), Am (iii), Bb (IV), C (V), and Dm (vi) for the song.
+
+create a house song 12 measures long. It should have a cool beat and a lead synth melody that uses the chord progression F (I), Gm (ii), Am (iii), Bb (IV), C (V), and Dm (vi).
 
 Create a romantic song for a string quartet. The lead violin should sing and have a pretty melody. Make it 10 measures long.
 
