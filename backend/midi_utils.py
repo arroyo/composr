@@ -16,8 +16,9 @@ def song_to_midi(song: Song) -> bytes:
         MIDI file as bytes
     """
     # Create MIDIFile with 1 track per instrument track + 1 for tempo/time signature
+    # MIDIFile uses 960 ticks per quarter note by default
     total_tracks = len(song.tracks) + (1 if song.tracks else 0)
-    midi = MIDIFile(total_tracks)
+    midi = MIDIFile(total_tracks)  # Uses 960 ticks per quarter note by default
     
     # Track 0: Meta information (tempo, time signature)
     if song.tracks:
@@ -40,13 +41,18 @@ def song_to_midi(song: Song) -> bytes:
             start_tick = time_to_ticks(note.start_time, song.time_signature, song.tempo)
             duration_ticks = time_to_ticks(note.duration, song.time_signature, song.tempo)
             
+            # MIDIUtil applies a 960x scaling factor to both time and duration, so we need to compensate
+            # The actual values written will be: input_value / 960 * 960 = input_value
+            compensated_time = start_tick / 960
+            compensated_duration = duration_ticks / 960
+            
             # Add note to MIDI
             midi.addNote(
                 track=track_num,
                 channel=i % 16,  # Use track number as channel (0-15)
                 pitch=midi_note,
-                time=start_tick,
-                duration=duration_ticks,
+                time=compensated_time,
+                duration=compensated_duration,
                 volume=int(note.velocity * 127)  # Convert 0-1 to 0-127
             )
     
@@ -113,6 +119,8 @@ def time_to_ticks(time_str: str, time_signature: tuple[int, int], tempo: int) ->
     """
     try:
         # Handle duration notation (e.g., "4n", "8n", "16n")
+        total_beats = 0.0  # Initialize total_beats
+        
         if ':' not in time_str:
             if time_str.endswith('n'):
                 # Note duration notation - convert to beats
@@ -124,9 +132,9 @@ def time_to_ticks(time_str: str, time_signature: tuple[int, int], tempo: int) ->
                     '16n': 0.25, # Sixteenth note = 0.25 beat
                     '32n': 0.125, # Thirty-second note = 0.125 beat
                 }
-                beats = duration_map.get(time_str, 1.0)
+                total_beats = duration_map.get(time_str, 1.0)
             else:
-                beats = float(time_str)  # Fallback to treating as number of beats
+                total_beats = float(time_str)  # Fallback to treating as number of beats
         else:
             # Handle position notation (bars:beats:sixteenths)
             parts = time_str.split(':')
@@ -138,15 +146,15 @@ def time_to_ticks(time_str: str, time_signature: tuple[int, int], tempo: int) ->
             sixteenths = int(parts[2])
             
             # Calculate total beats
-            beats = bars * time_signature[0] + beats + sixteenths / 4.0
+            total_beats = bars * time_signature[0] + beats + sixteenths / 4.0
         
-        # Convert to ticks - use 480 ticks per quarter note as standard
+        # Convert to ticks - use 960 ticks per quarter note (MIDIUtil default)
         # This is independent of tempo as MIDI ticks represent relative timing
-        ticks_per_beat = 480
-        return int(beats * ticks_per_beat)
+        ticks_per_beat = 960
+        return int(total_beats * ticks_per_beat)
         
     except (ValueError, IndexError):
-        return 480  # Default to one quarter note
+        return 960  # Default to one quarter note (960 ticks)
 
 def midi_to_song(midi_data: bytes) -> Song:
     """
@@ -174,7 +182,11 @@ def midi_to_song(midi_data: bytes) -> Song:
                 if msg.type == 'set_tempo':
                     tempo = int(60000000 / msg.tempo)  # Convert microseconds per beat to BPM
                 elif msg.type == 'time_signature':
-                    time_signature = [msg.numerator, msg.denominator]
+                    # MIDI time signature denominator is a power of 2
+                    # 0 = whole note, 1 = half, 2 = quarter, 3 = eighth, 4 = sixteenth
+                    denominator_map = {0: 1, 1: 2, 2: 4, 3: 8, 4: 16}
+                    denominator = denominator_map.get(msg.denominator, 4)
+                    time_signature = [msg.numerator, denominator]
         
         # Group notes by track/channel
         track_notes = {}
@@ -231,8 +243,8 @@ def midi_to_song(midi_data: bytes) -> Song:
                         )
                         for note in valid_notes
                     ],
-                    volume=0.0,
-                    pan=0.0
+                    volume=0.0,  # TODO: Extract from MIDI control changes if available
+                    pan=0.0      # TODO: Extract from MIDI control changes if available
                 )
                 tracks.append(track_obj)
         
@@ -262,7 +274,7 @@ def midi_note_to_pitch(midi_note: int) -> str:
 
 def ticks_to_time(ticks: int, time_signature: tuple[int, int], tempo: int) -> str:
     """Convert MIDI ticks to bars:beats:sixteenths format."""
-    ticks_per_beat = 480
+    ticks_per_beat = 960  # Match MIDIUtil's default ticks per quarter note
     beats_per_bar = time_signature[0]
     
     total_beats = ticks / ticks_per_beat
@@ -283,7 +295,7 @@ def ticks_to_time(ticks: int, time_signature: tuple[int, int], tempo: int) -> st
 
 def ticks_to_duration(ticks: int, time_signature: tuple[int, int], tempo: int) -> str:
     """Convert MIDI ticks to duration notation."""
-    ticks_per_beat = 480
+    ticks_per_beat = 960  # Match MIDIUtil's default ticks per quarter note
     beats = ticks / ticks_per_beat
     
     # Use more precise thresholds to better match note durations
