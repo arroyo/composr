@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Music } from "lucide-react";
-import { Song } from "@/lib/types";
+import { Send, Loader2, Music, ChevronDown } from "lucide-react";
+import { Song, AVAILABLE_MODELS, Model } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface ChatProps {
@@ -20,11 +20,25 @@ export default function Chat({ onUpdateSong }: ChatProps) {
     ]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedModel, setSelectedModel] = useState<Model>(AVAILABLE_MODELS[0]); // Default to GPT 4o
+    const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsModelDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
@@ -34,36 +48,109 @@ export default function Chat({ onUpdateSong }: ChatProps) {
         setMessages(prev => [...prev, { role: "user", content: userMessage }]);
         setIsLoading(true);
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
+
         try {
             const res = await fetch("http://localhost:8000/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message: userMessage })
+                body: JSON.stringify({ 
+                    message: userMessage,
+                    model: selectedModel.id 
+                }),
+                signal: controller.signal,
             });
 
             const data = await res.json();
+
+            if (!res.ok) {
+                const detail = data?.detail || `Error ${res.status}: ${res.statusText}`;
+                setMessages(prev => [...prev, { role: "agent", content: `⚠️ ${detail}` }]);
+                return;
+            }
 
             if (data.song_state) {
                 onUpdateSong(data.song_state);
             }
 
             setMessages(prev => [...prev, { role: "agent", content: data.response }]);
-        } catch (e) {
-            setMessages(prev => [...prev, { role: "agent", content: "Oops, something went wrong communicating with the backend API." }]);
+        } catch (e: unknown) {
+            if (e instanceof Error && e.name === "AbortError") {
+                setMessages(prev => [...prev, { role: "agent", content: `⏱ Request timed out after 30 seconds. ${selectedModel.name} may be unavailable or overloaded — try again or switch to a different model.` }]);
+            } else {
+                setMessages(prev => [...prev, { role: "agent", content: "⚠️ Could not reach the backend. Is the server running?" }]);
+            }
         } finally {
+            clearTimeout(timeoutId);
             setIsLoading(false);
         }
+
     };
 
     return (
         <div className="flex flex-col h-full bg-zinc-950/50 backdrop-blur-xl border-r border-zinc-800/50">
-            <div className="p-4 border-b border-zinc-800/50 flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
-                    <Music className="w-5 h-5 text-white" />
+            <div className="p-4 border-b border-zinc-800/50">
+                <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
+                        <Music className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                        <h2 className="text-sm font-semibold text-zinc-100">AI Composer</h2>
+                        <p className="text-xs text-zinc-400">Agentic Music Studio</p>
+                    </div>
                 </div>
-                <div>
-                    <h2 className="text-sm font-semibold text-zinc-100">AI Composer</h2>
-                    <p className="text-xs text-zinc-400">Agentic Music Studio</p>
+                
+                {/* Model Selection Dropdown */}
+                <div className="relative" ref={dropdownRef}>
+                    <button
+                        onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                        className="w-full flex items-center justify-between p-3 bg-zinc-900 border border-zinc-800 rounded-xl hover:bg-zinc-800 transition-colors"
+                    >
+                        <div className="text-left flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-zinc-100">{selectedModel.name}</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
+                                    selectedModel.provider === 'anthropic'
+                                        ? 'bg-orange-500/20 text-orange-400'
+                                        : 'bg-emerald-500/20 text-emerald-400'
+                                }`}>
+                                    {selectedModel.provider === 'anthropic' ? 'Anthropic' : 'OpenAI'}
+                                </span>
+                            </div>
+                            <div className="text-xs text-zinc-500 mt-0.5 truncate">{selectedModel.description}</div>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform flex-shrink-0 ml-2 ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {isModelDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto">
+                            {AVAILABLE_MODELS.map((model) => (
+                                <button
+                                    key={model.id}
+                                    onClick={() => {
+                                        setSelectedModel(model);
+                                        setIsModelDropdownOpen(false);
+                                    }}
+                                    className={`w-full p-3 text-left hover:bg-zinc-800 transition-colors border-b border-zinc-800 last:border-b-0 ${
+                                        selectedModel.id === model.id ? 'bg-zinc-800' : ''
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-zinc-100">{model.name}</span>
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
+                                            model.provider === 'anthropic'
+                                                ? 'bg-orange-500/20 text-orange-400'
+                                                : 'bg-emerald-500/20 text-emerald-400'
+                                        }`}>
+                                            {model.provider === 'anthropic' ? 'Anthropic' : 'OpenAI'}
+                                        </span>
+                                    </div>
+                                    <div className="text-xs text-zinc-500 mt-0.5">{model.description}</div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 

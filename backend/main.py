@@ -1,5 +1,6 @@
 import os
-from fastapi import FastAPI
+import asyncio
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -22,8 +23,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+AGENT_TIMEOUT_SECONDS = 60
+
 class ChatRequest(BaseModel):
     message: str
+    model: str = "gpt-4o"  # Default model
 
 class ChatResponse(BaseModel):
     response: str
@@ -32,8 +36,6 @@ class ChatResponse(BaseModel):
 @app.get("/api/state", response_model=Song)
 async def get_state():
     """Returns the current symbolic music state."""
-    # current_song is a global in-memory object in agent.py
-    # We dynamically import it here to avoid circular dependencies if later split
     from agent import current_song
     return current_song
 
@@ -41,27 +43,45 @@ async def get_state():
 async def chat(request: ChatRequest):
     """Sends a user instruction to the AI Music Producer agent."""
     from agent import current_song, chat_history
-    from langchain_core.messages import HumanMessage
-    
+
     # Append the next user message to memory
     chat_history.append(HumanMessage(content=request.message))
-    
-    # Invoke the LangGraph framework using the whole chat history
-    inputs = {"messages": chat_history, "song": current_song}
-    
-    # We need to run the graph and get the final output.
-    # The output structure is a dict containing 'messages' and 'song'
-    result = agent_app.invoke(inputs)
-    
-    # Update local chat history with whatever the agent appended (tool calls, tool returns, AI messages)
-    # The result["messages"] contains the full dialogue up to the final AI response
+
+    inputs = {"messages": chat_history, "song": current_song, "model": request.model}
+
+    loop = asyncio.get_event_loop()
+
+    try:
+        # Run the blocking synchronous LangGraph call in a thread pool so the
+        # event loop stays free, then enforce a hard async timeout around it.
+        result = await asyncio.wait_for(
+            loop.run_in_executor(None, lambda: agent_app.invoke(inputs)),
+            timeout=AGENT_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        chat_history.pop()
+        raise HTTPException(
+            status_code=504,
+            detail=f"Request to '{request.model}' timed out after {AGENT_TIMEOUT_SECONDS}s. The model may be unavailable or overloaded.",
+        )
+    except Exception as e:
+        chat_history.pop()
+        error_str = str(e)
+        if "insufficient_quota" in error_str or "429" in error_str:
+            detail = "OpenAI quota exceeded. Please add credits at platform.openai.com/account/billing."
+        elif "model_not_found" in error_str or "404" in error_str:
+            detail = f"Model '{request.model}' is not available on your API plan."
+        else:
+            detail = f"AI API error: {error_str[:300]}"
+        raise HTTPException(status_code=502, detail=detail)
+
+    # Update chat history with the full agent conversation
     from agent import chat_history as global_history
     global_history.clear()
     global_history.extend(result["messages"])
-    
-    # The last message is the agent's final text response
+
     final_message = result["messages"][-1].content
-    
+
     return ChatResponse(
         response=final_message,
         song_state=current_song

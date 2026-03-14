@@ -1,7 +1,18 @@
 # Notes
 
+## Supported LLM Models
+- GPT 5.4 Pro
+- GPT 5.4
+- GPT 4.1
+- GPT 4o
+- Claude Opus 4.6
+- Claude Sonnet 4.6
+- Claude Haiku 4.5
+
 ## Music Prompts
-create a hip hop beat in the style of dr dre. 8 measures long.
+Create a hip hop beat in the style of dr dre, 4 measures long
+
+Create a hip hop song in the style of Dr Dre. It should be 14 measures long.
 
 Create an 8-measure chill hip hop beat with a funky bass line and a catchy melody.
 
@@ -26,7 +37,6 @@ create an 8 measure up beat rock and roll song in F Major. The beat is steady, w
 create a 12 measure up beat rock and roll song in F Major. The beat is a steady, driving rhythm with hi-hats playing eighth notes, a strong backbeat on the snare drum (beats 2 and 4), and a foundational kick drum (beats 1 and 3). The electric guitars wail and and electric bass keeps with the time
 
 ## Features
-
 Allow the user to change the tempo using the ui. Simple up/down arrows will suffice
 
 Let's improve the change instrument feature. Make it two levels. First one is the plugin, second is the instrument. Also look through the libraries and make sure we have all of the synths cataloged in the json file.

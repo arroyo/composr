@@ -2,6 +2,7 @@ import json
 import os
 from typing import Annotated, Literal, TypedDict
 from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph, END, add_messages
@@ -13,6 +14,7 @@ from schema import Song, Track, Note
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     song: Song
+    model: str
 
 # --- Global In-Memory Song State ---
 current_song = Song()
@@ -29,6 +31,28 @@ SMPLR_INSTRUMENTS = [i for i in AVAILABLE_INSTRUMENTS if i["engine"] == "smplr"]
 
 def format_instruments_for_prompt(inst_list):
     return "\n".join([f"    {i['label']} -> engine=\"{i['engine']}\", plugin=\"{i['plugin']}\", bank=\"{i['bank']}\", preset=\"{i['id']}\"" for i in list(inst_list)])
+
+def get_llm_for_model(model_id: str):
+    """Returns the appropriate LLM instance for the given model ID."""
+    anthropic_models = {
+        "claude-opus-4-6":   "claude-opus-4-6",
+        "claude-sonnet-4-6": "claude-sonnet-4-6",
+        "claude-haiku-4-5":  "claude-haiku-4-5",
+    }
+    openai_models = {
+        "gpt-5.4":     "gpt-5.4",
+        "gpt-4.1":     "gpt-4.1",
+        "gpt-4o":      "gpt-4o",
+    }
+
+    if model_id in anthropic_models:
+        # Opus models may need longer timeouts
+        timeout = 90 if "opus" in model_id else 60
+        return ChatAnthropic(model=anthropic_models[model_id], temperature=0.7, timeout=timeout)  # type: ignore[call-arg]
+
+    # Default to gpt-4o for any unknown / OpenAI model
+    model_name = openai_models.get(model_id, "gpt-4o")
+    return ChatOpenAI(model=model_name, temperature=0.7, timeout=60)
 
 
 # --- Tools ---
@@ -141,10 +165,6 @@ tool_node = ToolNode(tools)
 from dotenv import load_dotenv
 load_dotenv()
 
-# --- Agent Initialization ---
-llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
-llm_with_tools = llm.bind_tools(tools)
-
 system_prompt_template = """You are an AI Music Producer. You compose symbolic music using tool calls.
 
 CRITICAL BEHAVIORAL RULE:
@@ -217,6 +237,7 @@ Once done with tool calls, respond with a friendly message describing what you c
 
 def agent_node(state: AgentState):
     messages = state['messages']
+    model_id = state.get('model', 'gpt-4o')  # Default to gpt-4o if not specified
 
     try:
         song_json = current_song.model_dump_json(indent=2)
@@ -237,6 +258,10 @@ def agent_node(state: AgentState):
     else:
         messages = [SystemMessage(content=context_prompt)] + messages
 
+    # Get the appropriate LLM for the selected model
+    llm = get_llm_for_model(model_id)
+    llm_with_tools = llm.bind_tools(tools)
+    
     response = llm_with_tools.invoke(messages)
     return {"messages": [response], "song": current_song}
 
