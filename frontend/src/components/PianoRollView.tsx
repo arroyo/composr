@@ -32,6 +32,7 @@ const PITCHES = [
 
 const OCTAVES = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 const KEY_HEIGHT = 14;
+const PIXELS_PER_BEAT = 50;
 
 export default function PianoRollView({ song, audioInitialized, onUpdateSong, onEnsureAudioInit }: PianoRollViewProps) {
     const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
@@ -72,16 +73,14 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
         return { bar: parts[0] || 0, beat: parts[1] || 0, sixteenth: parts[2] || 0 };
     };
 
-    const timeToX = (timeStr: string, width: number): number => {
+    const timeToX = (timeStr: string): number => {
         const { bar, beat, sixteenth } = parseTime(timeStr);
         const beatsPerBar = song.time_signature[0];
         const totalBeats = bar * beatsPerBar + beat + sixteenth / 4;
-        const pixelsPerBeat = width / (song.time_signature[0] * 4); // 4 bars visible
-        return totalBeats * pixelsPerBeat;
+        return totalBeats * PIXELS_PER_BEAT;
     };
 
-    const durationToWidth = (duration: string, width: number): number => {
-        const pixelsPerBeat = width / (song.time_signature[0] * 4);
+    const durationToWidth = (duration: string): number => {
         const durationMap: { [key: string]: number } = {
             '1n': 4,      // Whole note = 4 beats
             '2n': 2,      // Half note = 2 beats  
@@ -90,7 +89,17 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
             '16n': 0.25,  // Sixteenth note = 0.25 beat
         };
         const beats = durationMap[duration] || 1;
-        return beats * pixelsPerBeat;
+        return beats * PIXELS_PER_BEAT;
+    };
+
+    const getTrackGridWidth = (track: Track): number => {
+        if (track.notes.length === 0) return 800;
+        let maxEnd = 0;
+        for (const note of track.notes) {
+            const noteEnd = timeToX(note.start_time) + durationToWidth(note.duration);
+            if (noteEnd > maxEnd) maxEnd = noteEnd;
+        }
+        return Math.max(800, maxEnd + 100);
     };
 
     const displayedPitches = useMemo(() => allPitches, [allPitches]);
@@ -163,9 +172,8 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
         onUpdateSong({ ...song, tracks: updatedTracks });
     };
 
-    const xToTime = (x: number, width: number): string => {
-        const pixelsPerBeat = width / (song.time_signature[0] * 4);
-        const totalBeats = x / pixelsPerBeat;
+    const xToTime = (x: number): string => {
+        const totalBeats = x / PIXELS_PER_BEAT;
         const beatsPerBar = song.time_signature[0];
         const bar = Math.floor(totalBeats / beatsPerBar);
         const beat = Math.floor(totalBeats % beatsPerBar);
@@ -237,8 +245,7 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                         const gridRect = gridArea.getBoundingClientRect();
                         
                         const newTime = xToTime(
-                            Math.max(0, Math.min(gridRect.width, timeToX(draggedNote.note.start_time, 800) + deltaX)),
-                            800
+                            Math.max(0, timeToX(draggedNote.note.start_time) + deltaX)
                         );
                         
                         const totalGridHeight = displayedPitches.length * KEY_HEIGHT;
@@ -259,7 +266,7 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
             const deltaX = e.clientX - resizingNote.startX;
             const newWidth = Math.max(20, resizingNote.startWidth + deltaX);
             
-            const newDuration = widthToDuration(newWidth, 800);
+            const newDuration = widthToDuration(newWidth);
             updateNote(resizingNote.trackId, resizingNote.noteIndex, {
                 duration: newDuration
             });
@@ -272,9 +279,8 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
         setTimeout(() => setIsDragging(false), 10); // Reset after click delay
     };
 
-    const widthToDuration = (width: number, totalWidth: number): string => {
-        const pixelsPerBeat = totalWidth / (song.time_signature[0] * 4);
-        const beats = width / pixelsPerBeat;
+    const widthToDuration = (width: number): string => {
+        const beats = width / PIXELS_PER_BEAT;
         
         if (beats >= 4) return '1n';
         if (beats >= 2) return '2n';
@@ -324,7 +330,9 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                     onClick={() => setExpandedTrackId(isExpanded ? null : track.id)}
                                 >
                                     {/* Condensed notes behind text */}
-                                    {!isExpanded && (
+                                    {!isExpanded && (() => {
+                                        const gw = getTrackGridWidth(track);
+                                        return (
                                         <div className="absolute inset-0">
                                             {/* Beat lines */}
                                             {Array.from({ length: 16 }, (_, i) => (
@@ -340,15 +348,16 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                                     key={noteIndex}
                                                     className={`absolute h-2 ${trackColor} rounded-sm opacity-40`}
                                                     style={{
-                                                        left: `${timeToX(note.start_time, 800)}px`,
-                                                        width: `${durationToWidth(note.duration, 800)}px`,
+                                                        left: `${(timeToX(note.start_time) / gw) * 100}%`,
+                                                        width: `${(durationToWidth(note.duration) / gw) * 100}%`,
                                                         top: '50%',
                                                         transform: 'translateY(-50%)'
                                                     }}
                                                 />
                                             ))}
                                         </div>
-                                    )}
+                                        );
+                                    })()}
 
                                     {/* Text content on top */}
                                     <div className={`w-3 h-3 rounded-full ${trackColor} relative z-10 flex-shrink-0`} />
@@ -366,13 +375,16 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                 </div>
 
                                 {/* Expanded Piano Roll */}
-                                {isExpanded && (
+                                {isExpanded && (() => {
+                                    const gridWidth = getTrackGridWidth(track);
+                                    const totalBeats = Math.ceil(gridWidth / PIXELS_PER_BEAT);
+                                    return (
                                     <div className="h-80 px-6 pb-4" ref={pianoRollRef}>
                                         <div className="h-full bg-zinc-900/50 rounded-lg relative">
-                                            <div className="h-full overflow-y-auto overflow-x-hidden">
+                                            <div className="h-full overflow-auto">
                                             {/* Piano Keys + Grid */}
-                                            <div className="flex" style={{ height: displayedPitches.length * KEY_HEIGHT }}>
-                                                <div className="w-16 bg-zinc-800 border-r border-zinc-700 flex-shrink-0">
+                                            <div className="flex" style={{ height: displayedPitches.length * KEY_HEIGHT, minWidth: gridWidth + 64 }}>
+                                                <div className="w-16 bg-zinc-800 border-r border-zinc-700 flex-shrink-0 sticky left-0 z-10">
                                                     {displayedPitches.map((pitch, index) => {
                                                         const isBlackKey = pitch.includes('#');
                                                         const isWhiteKey = !isBlackKey;
@@ -400,21 +412,24 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                                 
                                                 {/* Grid */}
                                                 <div 
-                                                    className="flex-1 relative"
+                                                    className="relative"
+                                                    style={{ width: gridWidth }}
                                                     onDoubleClick={(e) => {
                                                         const rect = e.currentTarget.getBoundingClientRect();
                                                         const x = e.clientX - rect.left;
                                                         const y = e.clientY - rect.top;
-                                                        createNote(track.id, yToPitch(y), xToTime(x, 800));
+                                                        createNote(track.id, yToPitch(y), xToTime(x));
                                                     }}
                                                 >
                                                     {/* Beat lines */}
                                                     <div className="absolute inset-0">
-                                                        {Array.from({ length: 16 }, (_, i) => (
+                                                        {Array.from({ length: totalBeats }, (_, i) => (
                                                             <div
                                                                 key={i}
-                                                                className="absolute top-0 bottom-0 border-l border-zinc-700/30"
-                                                                style={{ left: `${(i / 16) * 100}%` }}
+                                                                className={`absolute top-0 bottom-0 border-l ${
+                                                                    i % song.time_signature[0] === 0 ? 'border-zinc-600/50' : 'border-zinc-700/30'
+                                                                }`}
+                                                                style={{ left: `${i * PIXELS_PER_BEAT}px` }}
                                                             />
                                                         ))}
                                                     </div>
@@ -425,8 +440,8 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                                             key={noteIndex}
                                                             className={`absolute ${trackColor} rounded cursor-pointer hover:opacity-80 transition-opacity shadow-sm group`}
                                                             style={{
-                                                                left: `${timeToX(note.start_time, 800)}px`,
-                                                                width: `${durationToWidth(note.duration, 800)}px`,
+                                                                left: `${timeToX(note.start_time)}px`,
+                                                                width: `${durationToWidth(note.duration)}px`,
                                                                 top: `${displayedPitches.indexOf(note.pitch) * KEY_HEIGHT}px`,
                                                                 height: `${KEY_HEIGHT}px`
                                                             }}
@@ -468,7 +483,8 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                             )}
                                         </div>
                                     </div>
-                                )}
+                                    );
+                                })()}
                             </div>
                         );
                     })}

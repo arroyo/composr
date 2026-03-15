@@ -346,14 +346,14 @@ export default function Home() {
                 <div className="flex flex-col">
                   <button 
                     disabled={!song || song.tempo >= 300}
-                    onClick={() => song && handleUpdateSong({ ...song, tempo: song.tempo + 1 })}
+                    onClick={() => { if (song) { const newTempo = song.tempo + 1; handleUpdateSong({ ...song, tempo: newTempo }, true); engine.setTempo(newTempo); } }}
                     className="p-0.5 rounded-md text-zinc-500 hover:text-indigo-400 disabled:opacity-30 disabled:hover:text-zinc-500 transition-colors"
                   >
                     <ChevronUp className="w-3.5 h-3.5" />
                   </button>
                   <button 
                     disabled={!song || song.tempo <= 40}
-                    onClick={() => song && handleUpdateSong({ ...song, tempo: song.tempo - 1 })}
+                    onClick={() => { if (song) { const newTempo = song.tempo - 1; handleUpdateSong({ ...song, tempo: newTempo }, true); engine.setTempo(newTempo); } }}
                     className="p-0.5 rounded-md text-zinc-500 hover:text-indigo-400 disabled:opacity-30 disabled:hover:text-zinc-500 transition-colors"
                   >
                     <ChevronDown className="w-3.5 h-3.5" />

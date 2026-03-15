@@ -492,6 +492,10 @@ export class AudioEngine {
         if (this.onPlaybackStop) this.onPlaybackStop();
     }
 
+    public setTempo(bpm: number) {
+        Tone.Transport.bpm.value = bpm;
+    }
+
     public isPlaying() {
         return Tone.Transport.state === 'started';
     }
