@@ -33,6 +33,8 @@ Create a country song that is 10 measures long. Feature a harmonica for the lead
 Create a bluegrass song in G Major. Song should be 12 measures long and have 3 movements.
 The banjo should be playing a steady rhythm and the fiddle should be playing a melody. The bass should be playing a steady rhythm and the guitar should be playing a steady rhythm.
 
+create a 20 second rock and roll song in A Minor. I want a steady, driving rhythm with hi-hats kick and snare. It should have emotion and angst
+
 create a 30 second up beat rock and roll song in F Major.
 I want a steady, driving rhythm with hi-hats playing eighth notes, a strong backbeat on the snare drum (beats 2 and 4), and a foundational kick drum (beats 1 and 3).
 
@@ -41,8 +43,6 @@ create an 8 measure up beat rock and roll song in F Major. The beat is steady, w
 create a 12 measure up beat rock and roll song in F Major. The beat is a steady, driving rhythm with hi-hats playing eighth notes, a strong backbeat on the snare drum (beats 2 and 4), and a foundational kick drum (beats 1 and 3). The electric guitars wail and and electric bass keeps with the time
 
 ## Features
-Allow the user to change the tempo using the ui. Simple up/down arrows will suffice
-
 Let's improve the change instrument feature. Make it two levels. First one is the plugin, second is the instrument. Also look through the libraries and make sure we have all of the synths cataloged in the json file.
 
 When you adjust the sliders in mixer view it...
