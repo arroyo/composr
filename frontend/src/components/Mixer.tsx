@@ -1,7 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Song, Track, InstrumentState } from "@/lib/types";
 import instrumentsData from "@/lib/instruments.json";
 import { engine } from "@/lib/audio";
+
+type InstrumentEntry = { id: string; engine: string; plugin: string; bank: string; label: string };
+
+const PLUGIN_LABELS: Record<string, string> = {
+  MembraneSynth: "Membrane Synth",
+  NoiseSynth: "Noise Synth",
+  MetalSynth: "Metal Synth",
+  PolySynth: "Poly Synth",
+  AMSynth: "AM Synth",
+  FMSynth: "FM Synth",
+  MonoSynth: "Mono Synth",
+  DuoSynth: "Duo Synth",
+  PluckSynth: "Pluck Synth",
+  SplendidGrandPiano: "Grand Piano",
+  Soundfont: "Soundfont (GM)",
+  DrumMachine: "Drum Machine",
+};
 
 interface MixerProps {
   song: Song | null;
@@ -36,9 +53,42 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
     }
   };
 
+  // Build ordered list of unique plugins, preserving JSON order
+  const plugins = useMemo(() => {
+    const seen = new Set<string>();
+    const result: { key: string; engine: string; label: string }[] = [];
+    for (const inst of instrumentsData as InstrumentEntry[]) {
+      if (!seen.has(inst.plugin)) {
+        seen.add(inst.plugin);
+        result.push({ key: inst.plugin, engine: inst.engine, label: PLUGIN_LABELS[inst.plugin] || inst.plugin });
+      }
+    }
+    return result;
+  }, []);
+
+  // Group instruments by plugin
+  const instrumentsByPlugin = useMemo(() => {
+    const map: Record<string, InstrumentEntry[]> = {};
+    for (const inst of instrumentsData as InstrumentEntry[]) {
+      if (!map[inst.plugin]) map[inst.plugin] = [];
+      map[inst.plugin].push(inst);
+    }
+    return map;
+  }, []);
+
+  const handlePluginChange = (trackIndex: number, newPlugin: string) => {
+    const firstInst = instrumentsByPlugin[newPlugin]?.[0];
+    if (!firstInst) return;
+    applyInstrument(trackIndex, firstInst);
+  };
+
   const handleInstrumentChange = (trackIndex: number, instrumentId: string) => {
-    const defaultInst = instrumentsData[0];
-    const item = instrumentsData.find((i: { id: string; engine: string; plugin: string; bank: string; label: string }) => i.id === instrumentId) || defaultInst;
+    const item = (instrumentsData as InstrumentEntry[]).find(i => i.id === instrumentId);
+    if (!item) return;
+    applyInstrument(trackIndex, item);
+  };
+
+  const applyInstrument = (trackIndex: number, item: InstrumentEntry) => {
     const newInstrument: InstrumentState = {
       engine: item.engine as "smplr" | "tonejs",
       plugin: item.plugin,
@@ -152,18 +202,28 @@ export default function Mixer({ song, onUpdateSong, audioInitialized }: MixerPro
               />
             </div>
 
-            {/* Instrument Selector */}
-            <div className="w-full mb-3 px-1">
+            {/* Instrument Selector — Two Level */}
+            <div className="w-full mb-3 px-1 space-y-1">
+              {/* Level 1: Plugin */}
+              <select
+                className="w-full bg-zinc-950/50 border border-zinc-700/50 rounded-md text-[10px] text-zinc-300 py-1 px-1 appearance-none focus:outline-none focus:ring-1 focus:ring-indigo-500 hover:bg-zinc-800 transition-colors cursor-pointer text-center"
+                value={track.instrument.plugin}
+                onChange={(e) => handlePluginChange(i, e.target.value)}
+                title="Change Plugin"
+              >
+                {plugins.map(p => (
+                  <option key={p.key} value={p.key}>{p.label}</option>
+                ))}
+              </select>
+              {/* Level 2: Instrument */}
               <select
                 className="w-full bg-zinc-950/50 border border-zinc-700/50 rounded-md text-[10px] text-zinc-300 py-1 px-1 appearance-none focus:outline-none focus:ring-1 focus:ring-indigo-500 hover:bg-zinc-800 transition-colors cursor-pointer text-center"
                 value={track.instrument.preset}
                 onChange={(e) => handleInstrumentChange(i, e.target.value)}
                 title="Change Instrument"
               >
-                {instrumentsData.map((inst: { id: string; engine: string; plugin: string; bank: string; label: string }) => (
-                  <option key={inst.id} value={inst.id}>
-                    {inst.label}
-                  </option>
+                {(instrumentsByPlugin[track.instrument.plugin] || []).map((inst: InstrumentEntry) => (
+                  <option key={inst.id} value={inst.id}>{inst.label}</option>
                 ))}
               </select>
             </div>

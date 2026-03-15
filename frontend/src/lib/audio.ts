@@ -7,7 +7,10 @@ type ToneSynthInstance =
     | Tone.PolySynth
     | Tone.MembraneSynth
     | Tone.MetalSynth
-    | Tone.NoiseSynth;
+    | Tone.NoiseSynth
+    | Tone.MonoSynth
+    | Tone.DuoSynth
+    | Tone.PluckSynth;
 
 type AnySynth = Soundfont | ToneSynthInstance;
 
@@ -60,6 +63,30 @@ function createToneSynth(plugin: string, preset: string, channel: Tone.Channel):
                 modulationEnvelope: { attack: 0.5, decay: 0, sustain: 1, release: 0.5 },
             }).connect(channel);
 
+        case 'MonoSynth':
+            return new Tone.MonoSynth({
+                oscillator: { type: 'square' },
+                filter: { Q: 6, type: 'lowpass', rolloff: -24 },
+                envelope: { attack: 0.005, decay: 0.1, sustain: 0.4, release: 0.5 },
+                filterEnvelope: { attack: 0.06, decay: 0.2, sustain: 0.3, release: 0.5, baseFrequency: 200, octaves: 4 },
+            }).connect(channel);
+
+        case 'DuoSynth':
+            return new Tone.DuoSynth({
+                harmonicity: 1.5,
+                voice0: { oscillator: { type: 'sawtooth' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.8 } },
+                voice1: { oscillator: { type: 'square' }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.4, release: 1.0 } },
+                vibratoAmount: 0.2,
+                vibratoRate: 5,
+            }).connect(channel);
+
+        case 'PluckSynth':
+            return new Tone.PluckSynth({
+                attackNoise: 1,
+                dampening: 4000,
+                resonance: 0.98,
+            }).connect(channel);
+
         case 'PolySynth':
         default:
             return new Tone.PolySynth(Tone.Synth, {
@@ -81,7 +108,7 @@ function triggerToneNote(
     time: number,
     velocity: number
 ) {
-    if (synth instanceof Tone.MembraneSynth || synth instanceof Tone.MetalSynth || synth instanceof Tone.NoiseSynth) {
+    if (synth instanceof Tone.MembraneSynth || synth instanceof Tone.MetalSynth || synth instanceof Tone.NoiseSynth || synth instanceof Tone.MonoSynth || synth instanceof Tone.DuoSynth || synth instanceof Tone.PluckSynth) {
         const lastTime = lastTriggerTimes.get(synth) || -1;
         // Require at least 5ms between notes on a mono synth to prevent curve overlap crashes
         if (time <= lastTime + 0.005) {
@@ -93,7 +120,7 @@ function triggerToneNote(
     try {
         if (synth instanceof Tone.NoiseSynth) {
             synth.triggerAttackRelease(durationSecs, time, velocity);
-        } else if (synth instanceof Tone.MembraneSynth || synth instanceof Tone.MetalSynth) {
+        } else if (synth instanceof Tone.MembraneSynth || synth instanceof Tone.MetalSynth || synth instanceof Tone.MonoSynth || synth instanceof Tone.DuoSynth || synth instanceof Tone.PluckSynth) {
             synth.triggerAttackRelease(pitch, durationSecs, time, velocity);
         } else {
             (synth as Tone.PolySynth).triggerAttackRelease(pitch, durationSecs, time, velocity);
@@ -108,7 +135,10 @@ function isToneSynth(s: AnySynth): s is ToneSynthInstance {
         s instanceof Tone.PolySynth ||
         s instanceof Tone.MembraneSynth ||
         s instanceof Tone.MetalSynth ||
-        s instanceof Tone.NoiseSynth
+        s instanceof Tone.NoiseSynth ||
+        s instanceof Tone.MonoSynth ||
+        s instanceof Tone.DuoSynth ||
+        s instanceof Tone.PluckSynth
     );
 }
 
