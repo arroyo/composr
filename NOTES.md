@@ -14,6 +14,8 @@ Create a hip hop beat in the style of dr dre, 4 measures long
 
 Create a hip hop song in the style of Dr Dre. It should be 14 measures long.
 
+create a moody trip hop song, in the style of portished. Add a few chord changes and a cool slow beat. It should be 45 seconds long and follow an arc
+
 Create an 8-measure chill hip hop beat with a funky bass line and a catchy melody.
 
 Create a bluegrass song in G Major. Song should be 12 measures long. Use the chords F (I), Gm (ii), Am (iii), Bb (IV), C (V), and Dm (vi) for the song.

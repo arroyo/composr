@@ -20,8 +20,8 @@ app = FastAPI(title="AI Music Agent API")
 # Allow requests from the Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -98,24 +98,22 @@ async def map_state(song: Song):
     agent.chat_history.clear()
     return agent.current_song
 
-@app.get("/api/export/midi")
-async def export_midi():
-    """Export the current song as a MIDI file."""
-    from agent import current_song
-    
-    if not current_song or not current_song.tracks:
+@app.post("/api/export/midi")
+async def export_midi(song: Song):
+    """Export the provided song as a MIDI file."""
+    if not song or not song.tracks:
         raise HTTPException(status_code=400, detail="No song to export")
     
     try:
-        midi_data = song_to_midi(current_song)
+        midi_data = song_to_midi(song)
         
         # Generate filename using the shared utility function
-        filename = generate_filename(current_song.name, "mid")
+        filename = generate_filename(song.name, "mid")
         
         return Response(
             content=midi_data,
             media_type="audio/midi",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to export MIDI: {str(e)}")

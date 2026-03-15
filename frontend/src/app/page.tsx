@@ -145,7 +145,11 @@ export default function Home() {
     }
     
     try {
-      const response = await fetch("http://localhost:8000/api/export/midi");
+      const response = await fetch("http://localhost:8000/api/export/midi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(song),
+      });
       if (!response.ok) {
         const error = await response.json();
         alert(`Failed to export MIDI: ${error.detail}`);
