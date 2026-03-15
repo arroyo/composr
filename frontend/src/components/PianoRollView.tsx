@@ -30,7 +30,8 @@ const PITCHES = [
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
 ];
 
-const OCTAVES = [2, 3, 4, 5, 6];
+const OCTAVES = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+const KEY_HEIGHT = 14;
 
 export default function PianoRollView({ song, audioInitialized, onUpdateSong, onEnsureAudioInit }: PianoRollViewProps) {
     const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
@@ -92,12 +93,12 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
         return beats * pixelsPerBeat;
     };
 
-    const displayedPitches = useMemo(() => allPitches.slice(24, 60), [allPitches]);
+    const displayedPitches = useMemo(() => allPitches, [allPitches]);
 
-    const pitchToY = (pitch: string, height: number): number => {
+    const pitchToY = (pitch: string): number => {
         const index = displayedPitches.indexOf(pitch);
-        if (index === -1) return height / 2;
-        return (index / displayedPitches.length) * height;
+        if (index === -1) return 0;
+        return index * KEY_HEIGHT;
     };
 
     const playNote = async (trackId: string, note: Note) => {
@@ -172,8 +173,8 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
         return `${bar}:${beat}:${sixteenth}`;
     };
 
-    const yToPitch = (y: number, height: number): string => {
-        const index = Math.floor((y / height) * displayedPitches.length);
+    const yToPitch = (y: number): string => {
+        const index = Math.floor(y / KEY_HEIGHT);
         return displayedPitches[Math.min(Math.max(0, index), displayedPitches.length - 1)];
     };
 
@@ -240,9 +241,9 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                             800
                         );
                         
+                        const totalGridHeight = displayedPitches.length * KEY_HEIGHT;
                         const newPitch = yToPitch(
-                            Math.max(0, Math.min(gridRect.height, pitchToY(draggedNote.note.pitch, gridRect.height) + deltaY)),
-                            gridRect.height
+                            Math.max(0, Math.min(totalGridHeight, pitchToY(draggedNote.note.pitch) + deltaY))
                         );
                         
                         updateNote(draggedNote.trackId, draggedNote.noteIndex, {
@@ -367,20 +368,22 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                 {/* Expanded Piano Roll */}
                                 {isExpanded && (
                                     <div className="h-80 px-6 pb-4" ref={pianoRollRef}>
-                                        <div className="h-full bg-zinc-900/50 rounded-lg relative overflow-hidden">
-                                            {/* Piano Keys Background */}
-                                            <div className="absolute inset-0 flex">
-                                                <div className="w-16 bg-zinc-800 border-r border-zinc-700">
+                                        <div className="h-full bg-zinc-900/50 rounded-lg relative">
+                                            <div className="h-full overflow-y-auto overflow-x-hidden">
+                                            {/* Piano Keys + Grid */}
+                                            <div className="flex" style={{ height: displayedPitches.length * KEY_HEIGHT }}>
+                                                <div className="w-16 bg-zinc-800 border-r border-zinc-700 flex-shrink-0">
                                                     {displayedPitches.map((pitch, index) => {
                                                         const isBlackKey = pitch.includes('#');
                                                         const isWhiteKey = !isBlackKey;
+                                                        const isC = pitch.startsWith('C') && !pitch.includes('#');
                                                         return (
                                                             <div
                                                                 key={pitch}
-                                                                className={`border-b border-zinc-700/50 cursor-pointer transition-all ${
+                                                                className={`border-b border-zinc-700/50 cursor-pointer transition-all flex items-center justify-end pr-1 ${
                                                                     isWhiteKey ? 'bg-zinc-100 hover:bg-zinc-200' : 'bg-zinc-900 hover:bg-zinc-700'
                                                                 }`}
-                                                                style={{ height: `${100 / displayedPitches.length}%` }}
+                                                                style={{ height: KEY_HEIGHT }}
                                                                 title={pitch}
                                                                 onClick={() => playNote(track.id, {
                                                                     pitch,
@@ -388,7 +391,9 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                                                     duration: "8n",
                                                                     velocity: 0.8
                                                                 })}
-                                                            />
+                                                            >
+                                                                {isC && <span className={`text-[9px] font-medium select-none ${isWhiteKey ? 'text-zinc-500' : 'text-zinc-400'}`}>{pitch}</span>}
+                                                            </div>
                                                         );
                                                     })}
                                                 </div>
@@ -400,7 +405,7 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                                         const rect = e.currentTarget.getBoundingClientRect();
                                                         const x = e.clientX - rect.left;
                                                         const y = e.clientY - rect.top;
-                                                        createNote(track.id, yToPitch(y, rect.height), xToTime(x, 800));
+                                                        createNote(track.id, yToPitch(y), xToTime(x, 800));
                                                     }}
                                                 >
                                                     {/* Beat lines */}
@@ -422,8 +427,8 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                                             style={{
                                                                 left: `${timeToX(note.start_time, 800)}px`,
                                                                 width: `${durationToWidth(note.duration, 800)}px`,
-                                                                top: `${(displayedPitches.indexOf(note.pitch) / displayedPitches.length) * 100}%`,
-                                                                height: `${100 / displayedPitches.length}%`
+                                                                top: `${displayedPitches.indexOf(note.pitch) * KEY_HEIGHT}px`,
+                                                                height: `${KEY_HEIGHT}px`
                                                             }}
                                                             onClick={() => handleNoteClick(track.id, note)}
                                                             onDoubleClick={(e) => e.stopPropagation()}
@@ -451,6 +456,7 @@ export default function PianoRollView({ song, audioInitialized, onUpdateSong, on
                                                         </div>
                                                     ))}
                                                 </div>
+                                            </div>
                                             </div>
 
                                             {/* Hover Info */}
