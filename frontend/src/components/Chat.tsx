@@ -149,7 +149,7 @@ export default function Chat({ onUpdateSong }: ChatProps) {
                         <Music className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex-1">
-                        <h2 className="text-sm font-semibold text-zinc-100">AI Composer</h2>
+                        <h2 className="text-sm font-semibold text-zinc-100">Composr</h2>
                         <p className="text-xs text-zinc-400">Agentic Music Studio</p>
                     </div>
                 </div>
